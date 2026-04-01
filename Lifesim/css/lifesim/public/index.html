@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LifeSim — Financial Life Simulator</title>
+
+  <!-- Chart.js (CDN) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="css/styles.css"/>
+</head>
+<body>
+
+<div class="container" id="app">
+
+  <!-- ════════════════ ONBOARDING ════════════════ -->
+  <div id="screen-setup">
+    <div style="padding: 48px 0 28px; text-align:center;">
+      <div style="font-size:40px; margin-bottom:12px;">📡</div>
+      <h1 style="margin-bottom:8px;">LifeSim</h1>
+      <p style="color:var(--muted2); font-size:14px; max-width:300px; margin:0 auto; line-height:1.7;">
+        Model your financial future across multiple life paths. For informational use only.
+      </p>
+    </div>
+    <div class="card fade-up">
+      <h3>Create Your Profile</h3>
+      <div class="avatar-grid" id="avatar-grid"></div>
+      <div class="field">
+        <label class="micro" style="margin-bottom:5px; display:block;">Name</label>
+        <input type="text" id="setup-name" placeholder="What should we call you?"/>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label class="micro" style="margin-bottom:5px; display:block;">Current Age</label>
+          <input type="number" id="setup-age" placeholder="25" min="18" max="60" value="25"/>
+        </div>
+        <div class="field">
+          <label class="micro" style="margin-bottom:5px; display:block;">Starting Net Worth ($)</label>
+          <input type="number" id="setup-nw" placeholder="10000" value="10000"/>
+        </div>
+      </div>
+      <div class="disclaimer">
+        <span>⚠️</span>
+        <span>LifeSim is for <strong>educational and informational purposes only.</strong>
+        It does not constitute financial advice. Consult a licensed financial professional
+        for personalized guidance.</span>
+      </div>
+      <button class="btn btn-primary" onclick="completeSetup()">Launch Simulator →</button>
+    </div>
+  </div>
+
+  <!-- ════════════════ PROJECTIONS ════════════════ -->
+  <div id="screen-proj" style="display:none;">
+
+    <div class="card fade-up">
+      <div class="chart-hdr">
+        <h3 style="margin:0;">Wealth Projection</h3>
+        <div class="toggle-wrap" onclick="toggleInflation()">
+          <span>Today's $</span>
+          <div class="toggle" id="infl-toggle"></div>
+        </div>
+      </div>
+
+      <div class="legend" id="proj-legend"></div>
+      <canvas id="projChart" style="max-height:240px;"></canvas>
+      <div id="proj-stats"></div>
+      <div id="proj-breakeven"></div>
+
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="exportChart('projChart','projection')">⬇ Export</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="copySynopsis()">📋 Synopsis</button>
+      </div>
+    </div>
+
+    <div class="disclaimer">
+      <span>ℹ️</span>
+      <span>Projections are illustrative estimates based on the inputs you provide.
+      Past market performance does not guarantee future results. All figures are hypothetical.</span>
+    </div>
+
+    <div id="scenario-editors"></div>
+
+    <div id="add-path-btn" style="margin-bottom:20px;">
+      <button class="btn btn-ghost" onclick="togglePathC()" id="path-c-toggle-btn">
+        ＋ Add a third scenario
+      </button>
+    </div>
+  </div>
+
+  <!-- ════════════════ MONTE CARLO ════════════════ -->
+  <div id="screen-mc" style="display:none;">
+
+    <div class="card fade-up">
+      <div class="chart-hdr">
+        <h3 style="margin:0;">Monte Carlo Simulation</h3>
+        <span class="micro" id="mc-sim-label">— simulations</span>
+      </div>
+      <p style="font-size:12px; color:var(--muted2); margin-bottom:12px; line-height:1.7;">
+        Runs <strong style="color:var(--text)">1,000 simulations</strong> with randomised
+        annual returns to show the probability spread of outcomes.
+        Shaded bands = 10th–90th percentile range.
+      </p>
+
+      <div style="margin-bottom:10px;">
+        <label class="micro" style="display:block; margin-bottom:6px;">Simulate which path?</label>
+        <div style="display:flex; gap:8px;">
+          <button class="btn btn-ghost btn-sm" id="mc-btn-a" onclick="setMcPath(0)">Path A</button>
+          <button class="btn btn-ghost btn-sm" id="mc-btn-b" onclick="setMcPath(1)">Path B</button>
+          <button class="btn btn-ghost btn-sm" id="mc-btn-c" onclick="setMcPath(2)" style="display:none;">Path C</button>
+        </div>
+      </div>
+
+      <canvas id="mcChart" style="max-height:240px;"></canvas>
+      <div id="mc-prob-bars" style="margin-top:16px;"></div>
+    </div>
+
+    <div class="disclaimer">
+      <span>⚠️</span>
+      <span>Monte Carlo results assume a normal distribution of annual returns.
+      Real markets are subject to fat-tailed events, prolonged downturns, and
+      conditions this model cannot predict. For informational use only.</span>
+    </div>
+
+    <div class="card card-alt card-sm fade-up">
+      <h3>Simulation Settings</h3>
+      <div class="field">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <label class="micro">Return Volatility (Std Dev)</label>
+          <span class="micro num" id="vol-label" style="color:var(--text)">12%</span>
+        </div>
+        <input type="range" id="vol-slider" min="4" max="24" value="12" step="1"
+          oninput="document.getElementById('vol-label').textContent = this.value + '%'; runMonteCarlo();"/>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════ LIFE EVENTS ════════════════ -->
+  <div id="screen-events" style="display:none;">
+
+    <div class="card fade-up">
+      <h3>Add Life Event</h3>
+      <p style="font-size:12px; color:var(--muted2); margin-bottom:14px; line-height:1.7;">
+        Life events appear as markers on your projection graph and can affect modelled cash flows.
+      </p>
+
+      <div class="field-row">
+        <div class="field">
+          <label class="micro" style="display:block; margin-bottom:5px;">Event Name</label>
+          <input type="text" id="ev-name" placeholder="Buy a House"/>
+        </div>
+        <div class="field">
+          <label class="micro" style="display:block; margin-bottom:5px;">Emoji</label>
+          <input type="text" id="ev-emoji" placeholder="🏠" maxlength="2"/>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label class="micro" style="display:block; margin-bottom:5px;">At Age</label>
+          <input type="number" id="ev-age" placeholder="32" min="18" max="80"/>
+        </div>
+        <div class="field">
+          <label class="micro" style="display:block; margin-bottom:5px;">One-time Cost ($)</label>
+          <input type="number" id="ev-cost" placeholder="50000"/>
+        </div>
+      </div>
+
+      <div class="field-row">
+        <div class="field">
+          <label class="micro" style="display:block; margin-bottom:5px;">Annual Impact ($/yr)</label>
+          <input type="number" id="ev-annual" placeholder="-15000"/>
+        </div>
+        <div class="field">
+          <label class="micro" style="display:block; margin-bottom:5px;">For How Many Years</label>
+          <input type="number" id="ev-years" placeholder="18" value="1"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="micro" style="display:block; margin-bottom:5px;">Apply To</label>
+        <select id="ev-applies">
+          <option value="all">All Paths</option>
+          <option value="0">Path A only</option>
+          <option value="1">Path B only</option>
+          <option value="2">Path C only</option>
+        </select>
+      </div>
+
+      <button class="btn btn-primary" onclick="addEvent()">+ Add Event</button>
+    </div>
+
+    <div id="event-list"></div>
+  </div>
+
+  <!-- ════════════════ SHARE ════════════════ -->
+  <div id="screen-share" style="display:none;">
+    <div class="card fade-up">
+      <h3>Share Your Projections</h3>
+      <p style="font-size:12px; color:var(--muted2); margin-bottom:16px; line-height:1.7;">
+        Generate a shareable synopsis of your scenarios. All figures are illustrative estimates.
+      </p>
+
+      <div class="share-card" id="share-preview">
+        <div class="share-badge">📡 LifeSim Snapshot</div>
+        <div id="share-paths-preview"></div>
+        <p style="font-size:10px; color:var(--muted2); margin-top:16px; line-height:1.6;">
+          For informational purposes only. Not financial advice.
+        </p>
+      </div>
+
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-primary btn-sm" onclick="copySynopsis()">📋 Copy to Clipboard</button>
+        <button class="btn btn-ghost btn-sm" onclick="exportChart('projChart','lifesim-projection')">⬇ Save Chart</button>
+      </div>
+    </div>
+
+    <div class="card card-alt card-sm fade-up">
+      <h3>Your Profile</h3>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="font-size:32px;" id="share-avatar"></div>
+        <div>
+          <div style="font-weight:600; font-size:15px;" id="share-name"></div>
+          <div style="font-size:12px; color:var(--muted2);" id="share-meta"></div>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:12px; width:auto;" onclick="resetProfile()">
+        Reset Profile
+      </button>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ════════════════ BOTTOM NAV ════════════════ -->
+<nav class="nav" id="main-nav" style="display:none;">
+  <div class="nav-item" id="nav-proj"   onclick="switchTab('proj')">
+    <span class="nav-icon">📈</span>Projections
+  </div>
+  <div class="nav-item" id="nav-mc"     onclick="switchTab('mc')">
+    <span class="nav-icon">🎲</span>Monte Carlo
+  </div>
+  <div class="nav-item" id="nav-events" onclick="switchTab('events')">
+    <span class="nav-icon">🗓️</span>Life Events
+  </div>
+  <div class="nav-item" id="nav-share"  onclick="switchTab('share')">
+    <span class="nav-icon">🔗</span>Share
+  </div>
+</nav>
+
+<!-- ════════════════ SCRIPTS ════════════════
+  Load order matters — each file depends on
+  what was defined in the files above it.
+════════════════════════════════════════════ -->
+<script src="js/data.js"></script>
+<script src="js/state.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/projections.js"></script>
+<script src="js/montecarlo.js"></script>
+<script src="js/events.js"></script>
+<script src="js/share.js"></script>
+<script src="js/nav.js"></script>
+
+</body>
+</html>
