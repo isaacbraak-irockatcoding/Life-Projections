@@ -34,17 +34,18 @@ function getEventImpact(age, events) {
 function calculatePath(scenario) {
   const job = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
   // Apply custom salary overrides if present
-  const effectiveJob = scenario.job_id === 'custom' && scenario.custom_s0
+  const effectiveJob = scenario.custom_s0
     ? { ...job, s0: scenario.custom_s0, s35: scenario.custom_s35 || job.s35, s50: scenario.custom_s50 || job.s50 }
     : job;
 
   const { currentAssets, currentDebt } = collapseBalanceSheet(scenario);
-  let wealth   = currentAssets - currentDebt;
-  const ages   = getAges(scenario.start_age);
-  const path   = [];
+  let wealth    = currentAssets - currentDebt;
+  const startAge = scenario.start_age || 25;
+  const workAges = Array.from({ length: 46 }, (_, i) => startAge + i);
+  const path     = new Array(startAge).fill(null); // nulls before user's age
   let retireBal = null, annualDrawn = 0;
 
-  ages.forEach((age, y) => {
+  workAges.forEach((age, y) => {
     path.push(Math.round(wealth));
     const ev = getEventImpact(age, scenario.events);
 
@@ -56,15 +57,16 @@ function calculatePath(scenario) {
     } else {
       if (retireBal === null) { retireBal = wealth; annualDrawn = retireBal * 0.04; }
       wealth = wealth * (1 + scenario.return_rate / 100) - annualDrawn;
-      if (wealth < 0) wealth = 0;
     }
   });
 
   return { path, annualDrawn };
 }
 
+// Returns ages 0 → (startAge + 45) for chart labels
 function getAges(startAge) {
-  return Array.from({ length: 46 }, (_, i) => (startAge || 25) + i);
+  const end = (startAge || 25) + 45;
+  return Array.from({ length: end + 1 }, (_, i) => i);
 }
 
 function applyInflation(path, on) {

@@ -3,11 +3,7 @@
    Real-time sync (no Save button needed).
 ══════════════════════════════════════════════ */
 
-function renderDebtsTab() {
-  const scenario = State.getScenario();
-  if (!scenario) return;
-  renderDebtsList();
-}
+function renderDebtsTab() { /* replaced by inline section in scenario editor */ }
 
 function renderDebtsList() {
   const scenario = State.getScenario();

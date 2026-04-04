@@ -20,6 +20,7 @@ function renderAuthTab() {
             onclick="setAuthMode('login')">Sign In</button>
           <button id="auth-tab-reg" class="auth-tab-btn ${_authMode === 'register' ? 'active' : ''}"
             onclick="setAuthMode('register')">Create Account</button>
+          <button class="auth-tab-btn" onclick="enterGuestMode()" style="color:var(--teal);white-space:nowrap;">Try as Guest</button>
         </div>
 
         <div id="auth-error" class="auth-error" style="display:none;"></div>
@@ -110,6 +111,16 @@ function showAuthError(msg) {
   if (!el) return;
   el.textContent = msg;
   el.style.display = 'block';
+}
+
+async function enterGuestMode() {
+  try {
+    const data = await api.post('/api/auth/guest', {});
+    State.setUser(data.user, data.token);
+    await bootAfterAuth();
+  } catch (err) {
+    showAuthError('Could not start guest session. Please try again.');
+  }
 }
 
 function handleLogout() {

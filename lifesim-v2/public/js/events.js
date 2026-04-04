@@ -7,15 +7,7 @@
 let _selectedEventType = 'custom';
 let _evColorIdx = 0;
 
-function renderEventsTab() {
-  const scenario = State.getScenario();
-  const screen   = document.getElementById('screen-events');
-  if (!scenario || !screen) return;
-
-  // Re-render just the event list (form is static HTML in index.html)
-  renderEventTypeSelector();
-  renderEventList();
-}
+function renderEventsTab() { /* replaced by inline section in scenario editor */ }
 
 function renderEventTypeSelector() {
   const container = document.getElementById('ev-type-chips');

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 
@@ -62,6 +63,23 @@ router.post('/login', async (req, res, next) => {
 
     const user = { id: row.id, username: row.username, avatar: row.avatar };
     res.json({ token: makeToken(user.id), user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/auth/guest
+router.post('/guest', async (req, res, next) => {
+  try {
+    const suffix   = crypto.randomBytes(4).toString('hex');
+    const username = `guest_${suffix}`;
+    const password = crypto.randomBytes(16).toString('hex');
+    const hash     = await bcrypt.hash(password, SALT_ROUNDS);
+    const result   = db.prepare(
+      'INSERT INTO users (username, password_hash, avatar) VALUES (?, ?, ?)'
+    ).run(username, hash, '🦊');
+    const user = { id: result.lastInsertRowid, username, avatar: '🦊' };
+    res.status(201).json({ token: makeToken(user.id), user });
   } catch (err) {
     next(err);
   }

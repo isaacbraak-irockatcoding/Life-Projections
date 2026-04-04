@@ -30,10 +30,6 @@
     <div class="card">
       <div class="chart-hdr">
         <h3 style="margin-bottom:0;">Wealth Projection</h3>
-        <div class="toggle-wrap" onclick="toggleInflation()">
-          <div class="toggle" id="infl-toggle"></div>
-          <span>Inflation adj.</span>
-        </div>
       </div>
       <canvas id="projChart" height="240"></canvas>
       <div class="legend" id="proj-legend"></div>
@@ -83,140 +79,6 @@
   </div>
 </div>
 
-<!-- ═══════════════ LIFE EVENTS SCREEN ═══════════════ -->
-<div id="screen-events" style="display:none;">
-  <div class="container">
-    <div class="card">
-      <h3>Add Life Event</h3>
-
-      <div id="ev-type-chips" class="event-type-chips"></div>
-
-      <div class="field-row">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Event Name</label>
-          <input type="text" id="ev-name" placeholder="e.g. Buy a house"/>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Emoji</label>
-          <input type="text" id="ev-emoji" placeholder="🏠" maxlength="4" style="width:60px;"/>
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">At Age</label>
-          <input type="number" id="ev-age" placeholder="30" min="18" max="90"/>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Duration (yrs)</label>
-          <input type="number" id="ev-years" value="1" min="1" max="50"/>
-        </div>
-      </div>
-
-      <div class="field-row">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">One-time Cost ($)</label>
-          <input type="number" id="ev-cost" placeholder="0"/>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Annual Impact ($)</label>
-          <input type="number" id="ev-annual" placeholder="0"/>
-        </div>
-      </div>
-
-      <p style="font-size:11px;color:var(--muted2);margin-bottom:10px;">
-        Positive = expense. For inheritance or income events, enter as positive — the app flips the sign.
-      </p>
-
-      <button class="btn btn-primary" onclick="addEvent()">Add to Timeline</button>
-    </div>
-
-    <div id="event-list"></div>
-  </div>
-</div>
-
-<!-- ═══════════════ ASSETS SCREEN ═══════════════ -->
-<div id="screen-assets" style="display:none;">
-  <div class="container">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
-        <h3 style="margin-bottom:0;">Assets</h3>
-        <div class="balance-total" id="assets-total">$0</div>
-      </div>
-
-      <div class="field">
-        <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
-        <select id="asset-type-select">
-          ${/* rendered by JS */''}
-        </select>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Name / Label</label>
-          <input type="text" id="asset-label" placeholder="Company 401(k)"/>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Current Value ($)</label>
-          <input type="number" id="asset-value" placeholder="0"/>
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Annual Contribution ($)</label>
-          <input type="number" id="asset-contrib" placeholder="0"/>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Expected Return %</label>
-          <input type="number" id="asset-rate" placeholder="7" value="7" step="0.5"/>
-        </div>
-      </div>
-      <button class="btn btn-primary" onclick="addAsset()">Add Asset</button>
-    </div>
-
-    <div id="assets-list"></div>
-  </div>
-</div>
-
-<!-- ═══════════════ DEBTS SCREEN ═══════════════ -->
-<div id="screen-debts" style="display:none;">
-  <div class="container">
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:16px;">
-        <h3 style="margin-bottom:0;">Debts</h3>
-        <div class="balance-total" style="color:var(--coral);" id="debts-total">$0</div>
-      </div>
-
-      <div class="field">
-        <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
-        <select id="debt-type-select"></select>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Name / Label</label>
-          <input type="text" id="debt-label" placeholder="Federal Student Loans"/>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Balance ($)</label>
-          <input type="number" id="debt-balance" placeholder="0"/>
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Interest Rate %</label>
-          <input type="number" id="debt-rate" placeholder="5" value="5" step="0.1"/>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Monthly Payment ($)</label>
-          <input type="number" id="debt-pmt" placeholder="0"/>
-        </div>
-      </div>
-      <button class="btn btn-primary" onclick="addDebt()">Add Debt</button>
-    </div>
-
-    <div id="debts-list"></div>
-  </div>
-</div>
-
 <!-- ═══════════════ SHARE SCREEN ═══════════════ -->
 <div id="screen-share" style="display:none;">
   <div class="container">
@@ -238,15 +100,6 @@
   </div>
   <div class="nav-item" id="nav-mc"      onclick="switchTab('mc')">
     <span class="nav-icon">📊</span>Monte Carlo
-  </div>
-  <div class="nav-item" id="nav-events"  onclick="switchTab('events')">
-    <span class="nav-icon">🗓️</span>Events
-  </div>
-  <div class="nav-item" id="nav-assets"  onclick="switchTab('assets')">
-    <span class="nav-icon">📈</span>Assets
-  </div>
-  <div class="nav-item" id="nav-debts"   onclick="switchTab('debts')">
-    <span class="nav-icon">💳</span>Debts
   </div>
   <div class="nav-item" id="nav-share"   onclick="switchTab('share')">
     <span class="nav-icon">🔗</span>Share
@@ -281,13 +134,6 @@
     setTimeout(() => el.remove(), 2700);
   }
 
-  // Populate type dropdowns after data.js is loaded
-  document.addEventListener('DOMContentLoaded', () => {
-    const assetSel = document.getElementById('asset-type-select');
-    if (assetSel) assetSel.innerHTML = ASSET_TYPES.map(t => `<option value="${t.id}">${t.label}</option>`).join('');
-    const debtSel = document.getElementById('debt-type-select');
-    if (debtSel) debtSel.innerHTML = DEBT_TYPES.map(t => `<option value="${t.id}">${t.label}</option>`).join('');
-  });
 </script>
 <script src="/js/nav.js"></script>
 </body>

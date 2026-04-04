@@ -3,12 +3,7 @@
    Real-time sync (no Save button needed).
 ══════════════════════════════════════════════ */
 
-function renderAssetsTab() {
-  const scenario = State.getScenario();
-  const el = document.getElementById('screen-assets');
-  if (!scenario || !el) return;
-  renderAssetsList();
-}
+function renderAssetsTab() { /* replaced by inline section in scenario editor */ }
 
 function renderAssetsList() {
   const scenario = State.getScenario();

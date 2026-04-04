@@ -21,8 +21,7 @@ const AVATARS = ['🦊', '🚀', '💎', '🌊', '✨', '🍀', '🦁', '🎯', 
 
 const EVENT_TYPES = [
   { id: 'house_purchase', label: 'House Purchase', emoji: '🏠', defaultCost: 60000, defaultAnnual: -18000, defaultYears: 30 },
-  { id: 'loan',           label: 'Loan / Debt',    emoji: '💳', defaultCost: 0,     defaultAnnual: -5000,  defaultYears: 10 },
-  { id: 'inheritance',    label: 'Inheritance',    emoji: '💰', defaultCost: -50000, defaultAnnual: 0,     defaultYears: 1  },
+{ id: 'inheritance',    label: 'Inheritance',    emoji: '💰', defaultCost: -50000, defaultAnnual: 0,     defaultYears: 1  },
   { id: 'marriage',       label: 'Marriage',       emoji: '💍', defaultCost: 25000, defaultAnnual: 0,      defaultYears: 1  },
   { id: 'children',       label: 'Children',       emoji: '👶', defaultCost: 15000, defaultAnnual: -10000, defaultYears: 18 },
   { id: 'job_change',     label: 'Job Change',     emoji: '💼', defaultCost: 0,     defaultAnnual: 0,      defaultYears: 1  },
