@@ -27,6 +27,22 @@ function collapseBalanceSheet(scenario) {
   return { currentAssets, currentDebt };
 }
 
+function getDebtPayments(debts, yearIndex) {
+  return (debts || []).reduce((sum, d) => {
+    if (!d.monthly_payment || d.monthly_payment <= 0) return sum;
+    const r = d.interest_rate / 100 / 12;
+    let payoffMonths;
+    if (r === 0) {
+      payoffMonths = d.balance / d.monthly_payment;
+    } else if (r * d.balance >= d.monthly_payment) {
+      return sum + d.monthly_payment * 12;
+    } else {
+      payoffMonths = -Math.log(1 - r * d.balance / d.monthly_payment) / Math.log(1 + r);
+    }
+    return yearIndex * 12 < payoffMonths ? sum + d.monthly_payment * 12 : sum;
+  }, 0);
+}
+
 // Box-Muller normal distribution generator
 function randNormal(mean, std) {
   let u = 0, v = 0;
@@ -73,8 +89,10 @@ onmessage = function({ data: { scenario, vol, simCount } }) {
       const r  = randNormal(scenario.return_rate / 100, volDecimal);
       const ev = getEventImpact(age, scenario.events);
       if (age < scenario.retire_age) {
-        const sal = getSalary(job, y);
-        wealth = wealth * (1 + r) + sal * (scenario.save_pct / 100) - ev.oneTime - ev.annual;
+        const sal          = getSalary(job, y);
+        const debtPayments = getDebtPayments(scenario.debts, y);
+        const savings      = Math.max(0, sal - (scenario.annual_expenses || 0) - debtPayments);
+        wealth = wealth * (1 + r) + savings - ev.oneTime - ev.annual;
       } else {
         if (retBal === null) { retBal = wealth; drawn = retBal * 0.04; }
         wealth = wealth * (1 + r) - drawn;

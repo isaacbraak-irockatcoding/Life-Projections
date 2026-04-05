@@ -18,6 +18,24 @@ function collapseBalanceSheet(scenario) {
   return { currentAssets, currentDebt };
 }
 
+// Returns total annual debt payments still owed at simulation year `yearIndex`
+// Payments drop to 0 once a debt is paid off (based on amortization schedule from current balance)
+function getDebtPayments(debts, yearIndex) {
+  return (debts || []).reduce((sum, d) => {
+    if (!d.monthly_payment || d.monthly_payment <= 0) return sum;
+    const r = d.interest_rate / 100 / 12;
+    let payoffMonths;
+    if (r === 0) {
+      payoffMonths = d.balance / d.monthly_payment;
+    } else if (r * d.balance >= d.monthly_payment) {
+      return sum + d.monthly_payment * 12; // payment < interest: debt never paid off
+    } else {
+      payoffMonths = -Math.log(1 - r * d.balance / d.monthly_payment) / Math.log(1 + r);
+    }
+    return yearIndex * 12 < payoffMonths ? sum + d.monthly_payment * 12 : sum;
+  }, 0);
+}
+
 // Returns one-time cost and annual drag from events at a given age
 // Accepts an explicit events array (so it can be used inside a Web Worker)
 function getEventImpact(age, events) {
@@ -50,9 +68,11 @@ function calculatePath(scenario) {
     const ev = getEventImpact(age, scenario.events);
 
     if (age < scenario.retire_age) {
-      const salary = getSalary(effectiveJob, y);
+      const salary       = getSalary(effectiveJob, y);
+      const debtPayments = getDebtPayments(scenario.debts, y);
+      const savings      = Math.max(0, salary - (scenario.annual_expenses || 0) - debtPayments);
       wealth = wealth * (1 + scenario.return_rate / 100)
-             + salary * (scenario.save_pct / 100)
+             + savings
              - ev.oneTime - ev.annual;
     } else {
       if (retireBal === null) { retireBal = wealth; annualDrawn = retireBal * 0.04; }
@@ -67,11 +87,6 @@ function calculatePath(scenario) {
 function getAges(startAge) {
   const end = (startAge || 25) + 45;
   return Array.from({ length: end + 1 }, (_, i) => i);
-}
-
-function applyInflation(path, on) {
-  if (!on) return path;
-  return path.map((v, i) => Math.round(v / Math.pow(1.025, i)));
 }
 
 function fmtM(v) {

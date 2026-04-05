@@ -13,7 +13,6 @@ const State = (() => {
     activeScenarioId: null,
     scenario:         null,    // full scenario object (with assets/debts/events)
     dirty:            false,
-    inflation:        false,
     mcPath:           0,
     mcVolatility:     12,
   };
@@ -88,9 +87,9 @@ const State = (() => {
   async function save() {
     if (!_s.scenario || !_s.dirty) return;
     const { id, name, color, job_id, custom_s0, custom_s35, custom_s50,
-            start_age, retire_age, save_pct, return_rate } = _s.scenario;
+            start_age, retire_age, save_pct, return_rate, annual_expenses } = _s.scenario;
     await api.saveScenario(id, { name, color, job_id, custom_s0, custom_s35, custom_s50,
-                                  start_age, retire_age, save_pct, return_rate });
+                                  start_age, retire_age, save_pct, return_rate, annual_expenses });
     // Update in the scenario list
     const idx = _s.scenarioList.findIndex(x => x.id === id);
     if (idx >= 0) Object.assign(_s.scenarioList[idx], { name, color, updated_at: Date.now() });
@@ -99,8 +98,6 @@ const State = (() => {
 
   // ── Display flags ──────────────────────────────────────────────────────────
   function isDirty()          { return _s.dirty; }
-  function toggleInflation()  { _s.inflation = !_s.inflation; return _s.inflation; }
-  function getInflation()     { return _s.inflation; }
   function setMcPath(idx)     { _s.mcPath = idx; }
   function getMcPath()        { return _s.mcPath; }
   function setMcVolatility(v) { _s.mcVolatility = v; }
@@ -115,7 +112,6 @@ const State = (() => {
     addAsset, removeAsset, updateAsset,
     addDebt, removeDebt, updateDebt,
     save, isDirty,
-    toggleInflation, getInflation,
     setMcPath, getMcPath,
     setMcVolatility, getMcVolatility,
   };

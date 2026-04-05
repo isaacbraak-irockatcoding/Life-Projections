@@ -8,6 +8,14 @@ const charts = {};
 // Which sections are expanded per-session (global, survives scenario switches)
 const _openSections = { career: true, finances: false, events: false, settings: false };
 
+// Time range for projection chart (null = All)
+let _projRange = null;
+
+function setProjRange(years) {
+  _projRange = years;
+  renderProjChart();
+}
+
 function toggleSection(key) {
   _openSections[key] = !_openSections[key];
   renderActiveScenarioEditor();
@@ -92,14 +100,22 @@ function renderProjChart() {
 
   const toRender = scenarios.length ? scenarios : [scenario];
 
-  const ages    = getAges(scenario.start_age);
-  const results = toRender.map(s => calculatePath(s));
-  const infl    = State.getInflation();
+  const startAge = scenario.start_age || 25;
+  const ages     = getAges(startAge);
+  const results  = toRender.map(s => calculatePath(s));
+  const xMin     = startAge;
+  const xMax     = _projRange ? startAge + _projRange : undefined;
+
+  // Update active range button
+  [5, 10, 20, null].forEach(r => {
+    const el = document.getElementById(r ? `rb-${r}` : 'rb-all');
+    if (el) el.classList.toggle('active', r === _projRange);
+  });
 
   const datasets = toRender.map((s, i) => {
     const color = s.color || PATH_COLORS[i % PATH_COLORS.length];
     return {
-      label: s.name, data: applyInflation(results[i].path, infl),
+      label: s.name, data: results[i].path,
       borderColor: color, backgroundColor: color + '10',
       fill: false, tension: 0.35, pointRadius: 0, borderWidth: 2.5, spanGaps: false,
     };
@@ -118,7 +134,7 @@ function renderProjChart() {
           ticks: { color: '#4a5370', callback: v =>
             v >= 1e6 ? '$'+(v/1e6).toFixed(1)+'M' : v >= 1000 ? '$'+(v/1000).toFixed(0)+'K' : '$'+v },
         },
-        x: { grid: { display: false }, ticks: { color: '#4a5370', maxTicksLimit: 8 } },
+        x: { min: xMin, max: xMax, grid: { display: false }, ticks: { color: '#4a5370', maxTicksLimit: 8 } },
       },
       plugins: {
         legend: { display: false },
@@ -144,7 +160,7 @@ function renderProjChart() {
   document.getElementById('proj-stats').innerHTML = `<div class="stats-row">` +
     toRender.map((s, i) => {
       const color = s.color || PATH_COLORS[i % PATH_COLORS.length];
-      const path  = applyInflation(results[i].path, infl);
+      const path  = results[i].path;
       const final = path[path.length - 1];
       const inc   = Math.round(results[i].annualDrawn);
       return `<div class="stat-box">
@@ -157,8 +173,8 @@ function renderProjChart() {
   // Breakeven (first two scenarios)
   const beEl = document.getElementById('proj-breakeven');
   if (toRender.length >= 2) {
-    const pA = applyInflation(results[0].path, infl);
-    const pB = applyInflation(results[1].path, infl);
+    const pA = results[0].path;
+    const pB = results[1].path;
     let be = null;
     for (let i = 1; i < pA.length; i++) {
       if ((pA[i] > pB[i]) !== (pA[i-1] > pB[i-1])) { be = ages[i]; break; }
@@ -201,6 +217,10 @@ function renderActiveScenarioEditor() {
   const isCustom = s.job_id === 'custom';
   const effS0   = s.custom_s0  != null ? s.custom_s0  : job.s0;
   const effS50  = s.custom_s50 != null ? s.custom_s50 : job.s50;
+
+  const totalDebtPmt  = (s.debts || []).reduce((sum, d) => sum + (d.monthly_payment || 0) * 12, 0);
+  const effSavings    = Math.max(0, effS0 - (s.annual_expenses || 0) - totalDebtPmt);
+  const estSavingsRate = effS0 > 0 ? Math.round(effSavings / effS0 * 100) : 0;
 
   const financeCount = (s.assets || []).length + (s.debts || []).length;
   const eventCount   = (s.events || []).length;
@@ -270,6 +290,14 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
         ${!isCustom ? `<p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Estimated salary — adjust if needed</p>` : ''}
+        <div class="field">
+          <label class="micro" style="display:block;margin-bottom:5px;">Annual Spending ($)</label>
+          <input type="number" value="${s.annual_expenses || 0}"
+            onchange="State.patchScenario({annual_expenses:+this.value});renderProjChart()"/>
+          <p class="micro" style="color:var(--muted2);margin-top:5px;text-transform:none;letter-spacing:0;font-size:11px;">
+            Est. savings at start salary: ~${fmtM(effSavings)}/yr (~${estSavingsRate}%)
+          </p>
+        </div>
       </div>
 
       <!-- ── Finances ── -->
@@ -386,14 +414,6 @@ function renderActiveScenarioEditor() {
       <!-- ── Projection Settings ── -->
       ${secHdr('settings', 'Projection Settings')}
       <div class="sec-body" style="display:${_openSections.settings ? '' : 'none'};">
-        <div class="field">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <label class="micro">Savings Rate</label>
-            <span class="micro num" id="sl-sp" style="color:var(--text)">${s.save_pct}%</span>
-          </div>
-          <input type="range" min="0" max="70" value="${s.save_pct}"
-            oninput="updSlider('save_pct',this.value,'sp','%')"/>
-        </div>
         <div class="field">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <label class="micro">Avg. Return Rate</label>

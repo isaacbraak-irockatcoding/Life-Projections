@@ -380,6 +380,9 @@ input[type=range] {
 .legend-line { width: 18px; height: 2px; border-radius: 2px; flex-shrink: 0; }
 
 .chart-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.range-btns { display: flex; gap: 4px; }
+.range-btn  { background: none; border: 1px solid var(--border2); border-radius: 6px; color: var(--muted2); font-size: 11px; padding: 3px 8px; cursor: pointer; font-family: inherit; transition: .15s; }
+.range-btn.active, .range-btn:hover { border-color: var(--teal); color: var(--teal); }
 
 /* ══════════════════════════════════════
    COLLAPSIBLE SECTIONS

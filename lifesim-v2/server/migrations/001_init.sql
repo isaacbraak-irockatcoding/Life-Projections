@@ -20,8 +20,9 @@ CREATE TABLE IF NOT EXISTS scenarios (
   custom_s50    REAL,
   start_age     INTEGER NOT NULL DEFAULT 25,
   retire_age    INTEGER NOT NULL DEFAULT 65,
-  save_pct      REAL    NOT NULL DEFAULT 20,
-  return_rate   REAL    NOT NULL DEFAULT 7,
+  save_pct        REAL    NOT NULL DEFAULT 20,
+  return_rate     REAL    NOT NULL DEFAULT 7,
+  annual_expenses REAL    NOT NULL DEFAULT 0,
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at    INTEGER NOT NULL DEFAULT (unixepoch())
 );
@@ -95,3 +96,6 @@ CREATE INDEX IF NOT EXISTS idx_events_scenario ON events(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_share_token     ON share_links(token);
 CREATE INDEX IF NOT EXISTS idx_comments_link   ON comments(share_link_id);
 CREATE INDEX IF NOT EXISTS idx_friends_pair    ON friendships(requester_id, addressee_id);
+
+-- Compatibility migration: add annual_expenses to existing databases (silently ignored if column exists)
+ALTER TABLE scenarios ADD COLUMN annual_expenses REAL NOT NULL DEFAULT 0;
