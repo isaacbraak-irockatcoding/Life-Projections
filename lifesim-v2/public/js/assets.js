@@ -19,13 +19,15 @@ function renderAssetsList() {
     return;
   }
 
+  const scenarioStartAge = State.getScenario()?.start_age || 25;
   el.innerHTML = scenario.assets.map(a => {
     const typeLabel = (ASSET_TYPES.find(t => t.id === a.type) || {}).label || a.type;
+    const isFuture  = a.start_age && a.start_age > scenarioStartAge;
     return `<div class="asset-row card card-sm">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div>
           <div style="font-weight:600;font-size:13px;">${a.label}</div>
-          <div class="micro" style="margin-top:2px;">${typeLabel}</div>
+          <div class="micro" style="margin-top:2px;">${typeLabel}${isFuture ? ` · starts age ${a.start_age}` : ''}</div>
         </div>
         <button class="event-del" onclick="deleteAsset(${a.id})">✕</button>
       </div>
@@ -43,6 +45,12 @@ function renderAssetsList() {
           <input type="number" step="0.5" value="${a.expected_return_rate}" onchange="updateAsset(${a.id},{expected_return_rate:+this.value})" placeholder="7"/>
         </div>
       </div>
+      <div class="field-row" style="margin-top:6px;">
+        <div class="field">
+          <label class="micro" style="display:block;margin-bottom:3px;">Acquired at age</label>
+          <input type="number" value="${a.start_age || ''}" onchange="updateAsset(${a.id},{start_age:this.value?+this.value:null})" placeholder="${scenarioStartAge} (now)"/>
+        </div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -53,14 +61,16 @@ async function addAsset() {
   const type  = document.getElementById('asset-type-select').value;
   const label = document.getElementById('asset-label').value.trim();
   const value = parseFloat(document.getElementById('asset-value').value) || 0;
-  const contrib = parseFloat(document.getElementById('asset-contrib').value) || 0;
-  const rate  = parseFloat(document.getElementById('asset-rate').value) || 7;
+  const contrib   = parseFloat(document.getElementById('asset-contrib').value) || 0;
+  const rate      = parseFloat(document.getElementById('asset-rate').value) || 7;
+  const startAgeEl = document.getElementById('asset-start-age');
+  const start_age  = startAgeEl && startAgeEl.value ? +startAgeEl.value : null;
   if (!label) { showToast('Please enter an asset name', true); return; }
   try {
-    const a = await api.createAsset(scenario.id, { type, label, value, annual_contribution: contrib, expected_return_rate: rate });
+    const a = await api.createAsset(scenario.id, { type, label, value, annual_contribution: contrib, expected_return_rate: rate, start_age });
     State.addAsset(a);
     // Clear form
-    ['asset-label','asset-value','asset-contrib'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['asset-label','asset-value','asset-contrib','asset-start-age'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     renderAssetsList();
     // Refresh projection if open
     if (charts.proj) renderProjChart();

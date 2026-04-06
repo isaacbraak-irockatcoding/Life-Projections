@@ -19,8 +19,10 @@ function renderDebtsList() {
     return;
   }
 
+  const scenarioStartAge = State.getScenario()?.start_age || 25;
   el.innerHTML = scenario.debts.map(d => {
     const typeLabel = (DEBT_TYPES.find(t => t.id === d.type) || {}).label || d.type;
+    const isFuture  = d.start_age && d.start_age > scenarioStartAge;
     // Estimated payoff in months
     const r = d.interest_rate / 100 / 12;
     const pmt = d.monthly_payment;
@@ -37,7 +39,7 @@ function renderDebtsList() {
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <div>
           <div style="font-weight:600;font-size:13px;">${d.label}</div>
-          <div class="micro" style="margin-top:2px;">${typeLabel}${payoffStr ? ' · Payoff ' + payoffStr : ''}</div>
+          <div class="micro" style="margin-top:2px;">${typeLabel}${isFuture ? ` · starts age ${d.start_age}` : (payoffStr ? ' · Payoff ' + payoffStr : '')}</div>
         </div>
         <button class="event-del" onclick="deleteDebt(${d.id})">✕</button>
       </div>
@@ -55,6 +57,12 @@ function renderDebtsList() {
           <input type="number" value="${d.monthly_payment}" onchange="updateDebt(${d.id},{monthly_payment:+this.value})" placeholder="0"/>
         </div>
       </div>
+      <div class="field-row" style="margin-top:6px;">
+        <div class="field">
+          <label class="micro" style="display:block;margin-bottom:3px;">Started at age</label>
+          <input type="number" value="${d.start_age || ''}" onchange="updateDebt(${d.id},{start_age:this.value?+this.value:null})" placeholder="${scenarioStartAge} (now)"/>
+        </div>
+      </div>
     </div>`;
   }).join('');
 }
@@ -65,13 +73,15 @@ async function addDebt() {
   const type    = document.getElementById('debt-type-select').value;
   const label   = document.getElementById('debt-label').value.trim();
   const balance = parseFloat(document.getElementById('debt-balance').value) || 0;
-  const rate    = parseFloat(document.getElementById('debt-rate').value) || 5;
-  const pmt     = parseFloat(document.getElementById('debt-pmt').value) || 0;
+  const rate       = parseFloat(document.getElementById('debt-rate').value) || 5;
+  const pmt        = parseFloat(document.getElementById('debt-pmt').value) || 0;
+  const startAgeEl = document.getElementById('debt-start-age');
+  const start_age  = startAgeEl && startAgeEl.value ? +startAgeEl.value : null;
   if (!label) { showToast('Please enter a debt name', true); return; }
   try {
-    const d = await api.createDebt(scenario.id, { type, label, balance, interest_rate: rate, monthly_payment: pmt });
+    const d = await api.createDebt(scenario.id, { type, label, balance, interest_rate: rate, monthly_payment: pmt, start_age });
     State.addDebt(d);
-    ['debt-label','debt-balance','debt-pmt'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    ['debt-label','debt-balance','debt-pmt','debt-start-age'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
     renderDebtsList();
     if (charts.proj) renderProjChart();
     showToast('Debt added');

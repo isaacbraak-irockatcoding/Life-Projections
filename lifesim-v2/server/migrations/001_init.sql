@@ -18,11 +18,13 @@ CREATE TABLE IF NOT EXISTS scenarios (
   custom_s0     REAL,
   custom_s35    REAL,
   custom_s50    REAL,
-  start_age     INTEGER NOT NULL DEFAULT 25,
-  retire_age    INTEGER NOT NULL DEFAULT 65,
+  start_age          INTEGER NOT NULL DEFAULT 25,
+  career_start_age   INTEGER NOT NULL DEFAULT 22,
+  retire_age         INTEGER NOT NULL DEFAULT 65,
   save_pct        REAL    NOT NULL DEFAULT 20,
   return_rate     REAL    NOT NULL DEFAULT 7,
   annual_expenses REAL    NOT NULL DEFAULT 0,
+  state_code      TEXT    NOT NULL DEFAULT 'none',
   created_at    INTEGER NOT NULL DEFAULT (unixepoch()),
   updated_at    INTEGER NOT NULL DEFAULT (unixepoch())
 );
@@ -35,6 +37,7 @@ CREATE TABLE IF NOT EXISTS assets (
   value                REAL    NOT NULL DEFAULT 0,
   annual_contribution  REAL    NOT NULL DEFAULT 0,
   expected_return_rate REAL    NOT NULL DEFAULT 7,
+  start_age            INTEGER,
   created_at           INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
@@ -46,6 +49,7 @@ CREATE TABLE IF NOT EXISTS debts (
   balance         REAL    NOT NULL DEFAULT 0,
   interest_rate   REAL    NOT NULL DEFAULT 5,
   monthly_payment REAL    NOT NULL DEFAULT 0,
+  start_age       INTEGER,
   created_at      INTEGER NOT NULL DEFAULT (unixepoch())
 );
 
@@ -99,3 +103,7 @@ CREATE INDEX IF NOT EXISTS idx_friends_pair    ON friendships(requester_id, addr
 
 -- Compatibility migration: add annual_expenses to existing databases (silently ignored if column exists)
 ALTER TABLE scenarios ADD COLUMN annual_expenses REAL NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN state_code TEXT NOT NULL DEFAULT 'none';
+ALTER TABLE scenarios ADD COLUMN career_start_age INTEGER NOT NULL DEFAULT 22;
+ALTER TABLE assets ADD COLUMN start_age INTEGER;
+ALTER TABLE debts  ADD COLUMN start_age INTEGER;

@@ -87,9 +87,9 @@ const State = (() => {
   async function save() {
     if (!_s.scenario || !_s.dirty) return;
     const { id, name, color, job_id, custom_s0, custom_s35, custom_s50,
-            start_age, retire_age, save_pct, return_rate, annual_expenses } = _s.scenario;
+            start_age, career_start_age, retire_age, save_pct, return_rate, annual_expenses, state_code } = _s.scenario;
     await api.saveScenario(id, { name, color, job_id, custom_s0, custom_s35, custom_s50,
-                                  start_age, retire_age, save_pct, return_rate, annual_expenses });
+                                  start_age, career_start_age, retire_age, save_pct, return_rate, annual_expenses, state_code });
     // Update in the scenario list
     const idx = _s.scenarioList.findIndex(x => x.id === id);
     if (idx >= 0) Object.assign(_s.scenarioList[idx], { name, color, updated_at: Date.now() });

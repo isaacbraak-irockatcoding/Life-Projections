@@ -40,14 +40,14 @@ router.post('/', (req, res, next) => {
     const {
       name = 'My Scenario', color = '#00d4aa', job_id = 'sw_eng',
       custom_s0, custom_s35, custom_s50,
-      start_age = 25, retire_age = 65, save_pct = 20, return_rate = 7, annual_expenses = 0
+      start_age = 25, career_start_age = 22, retire_age = 65, save_pct = 20, return_rate = 7, annual_expenses = 0, state_code = 'none'
     } = req.body;
     const result = db.prepare(`
       INSERT INTO scenarios (user_id, name, color, job_id, custom_s0, custom_s35, custom_s50,
-                             start_age, retire_age, save_pct, return_rate, annual_expenses)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             start_age, career_start_age, retire_age, save_pct, return_rate, annual_expenses, state_code)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(req.userId, name, color, job_id, custom_s0 ?? null, custom_s35 ?? null, custom_s50 ?? null,
-           start_age, retire_age, save_pct, return_rate, annual_expenses);
+           start_age, career_start_age, retire_age, save_pct, return_rate, annual_expenses, state_code);
     res.status(201).json(fullScenario(result.lastInsertRowid));
   } catch (err) { next(err); }
 });
@@ -66,7 +66,7 @@ router.patch('/:id', (req, res, next) => {
     if (!ownScenario(req.params.id, req.userId)) return res.status(404).json({ error: 'Not found' });
 
     const allowed = ['name','color','job_id','custom_s0','custom_s35','custom_s50',
-                     'start_age','retire_age','save_pct','return_rate','annual_expenses'];
+                     'start_age','career_start_age','retire_age','save_pct','return_rate','annual_expenses','state_code'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -100,11 +100,12 @@ router.post('/:id/clone', (req, res, next) => {
     const cloneInsert = db.transaction(() => {
       const r = db.prepare(`
         INSERT INTO scenarios (user_id, name, color, job_id, custom_s0, custom_s35, custom_s50,
-                               start_age, retire_age, save_pct, return_rate, annual_expenses)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               start_age, career_start_age, retire_age, save_pct, return_rate, annual_expenses, state_code)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(req.userId, cloneName, orig.color, orig.job_id,
              orig.custom_s0, orig.custom_s35, orig.custom_s50,
-             orig.start_age, orig.retire_age, orig.save_pct, orig.return_rate, orig.annual_expenses || 0);
+             orig.start_age, orig.career_start_age || 22, orig.retire_age, orig.save_pct, orig.return_rate,
+             orig.annual_expenses || 0, orig.state_code || 'none');
       const newId = r.lastInsertRowid;
 
       for (const a of orig.assets) {

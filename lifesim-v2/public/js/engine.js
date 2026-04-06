@@ -12,17 +12,26 @@ function getSalary(job, yearsWorked) {
 }
 
 // Collapses the assets and debts arrays into two numbers for the projection loop
+// Only includes items that have already started (start_age <= scenario.start_age or no start_age)
 function collapseBalanceSheet(scenario) {
-  const currentAssets = (scenario.assets || []).reduce((sum, a) => sum + (a.value || 0), 0);
-  const currentDebt   = (scenario.debts  || []).reduce((sum, d) => sum + (d.balance || 0), 0);
+  const s = scenario.start_age || 25;
+  const currentAssets = (scenario.assets || [])
+    .filter(a => !a.start_age || a.start_age <= s)
+    .reduce((sum, a) => sum + (a.value || 0), 0);
+  const currentDebt = (scenario.debts || [])
+    .filter(d => !d.start_age || d.start_age <= s)
+    .reduce((sum, d) => sum + (d.balance || 0), 0);
   return { currentAssets, currentDebt };
 }
 
-// Returns total annual debt payments still owed at simulation year `yearIndex`
-// Payments drop to 0 once a debt is paid off (based on amortization schedule from current balance)
-function getDebtPayments(debts, yearIndex) {
+// Returns total annual debt payments still owed at a given age
+// Offsets amortization by each debt's individual start_age
+function getDebtPayments(debts, age, scenarioStartAge) {
   return (debts || []).reduce((sum, d) => {
+    const debtStart = d.start_age || scenarioStartAge;
+    if (age < debtStart) return sum; // debt hasn't started yet
     if (!d.monthly_payment || d.monthly_payment <= 0) return sum;
+    const yearIndex = age - debtStart; // years since this debt started
     const r = d.interest_rate / 100 / 12;
     let payoffMonths;
     if (r === 0) {
@@ -34,6 +43,53 @@ function getDebtPayments(debts, yearIndex) {
     }
     return yearIndex * 12 < payoffMonths ? sum + d.monthly_payment * 12 : sum;
   }, 0);
+}
+
+// ── Tax calculations ───────────────────────────────────────────────────────────
+
+// 2024 federal income tax (single filer, standard deduction $14,600)
+function calcFederalTax(gross) {
+  const taxable = Math.max(0, gross - 14600);
+  const brackets = [
+    [11600,  0.10],
+    [35550,  0.12],
+    [53375,  0.22],
+    [91425,  0.24],
+    [51775,  0.32],
+    [365625, 0.35],
+    [Infinity, 0.37],
+  ];
+  let tax = 0, remaining = taxable;
+  for (const [size, rate] of brackets) {
+    if (remaining <= 0) break;
+    const chunk = Math.min(remaining, size);
+    tax += chunk * rate;
+    remaining -= chunk;
+  }
+  return tax;
+}
+
+// Approximate effective state income tax rates (flat simplification)
+const STATE_TAX_RATES = {
+  none: 0,
+  AK: 0, FL: 0, NV: 0, NH: 0, SD: 0, TN: 0, TX: 0, WA: 0, WY: 0,
+  AL: 0.040, AZ: 0.025, AR: 0.047, CA: 0.0725, CO: 0.044, CT: 0.055,
+  DE: 0.052, DC: 0.085, GA: 0.055, HI: 0.079, ID: 0.058, IL: 0.0495,
+  IN: 0.0305, IA: 0.057, KS: 0.052, KY: 0.045, LA: 0.042, ME: 0.063,
+  MD: 0.055, MA: 0.050, MI: 0.0425, MN: 0.068, MS: 0.047, MO: 0.049,
+  MT: 0.065, NE: 0.059, NJ: 0.063, NM: 0.049, NY: 0.065, NC: 0.0475,
+  ND: 0.025, OH: 0.038, OK: 0.047, OR: 0.088, PA: 0.0307, RI: 0.055,
+  SC: 0.064, UT: 0.0465, VT: 0.066, VA: 0.057, WV: 0.065, WI: 0.054,
+};
+
+function getStateTaxRate(stateCode) {
+  return STATE_TAX_RATES[stateCode] ?? 0;
+}
+
+function calcAfterTaxSalary(gross, stateCode) {
+  const federal = calcFederalTax(gross);
+  const state   = gross * getStateTaxRate(stateCode || 'none');
+  return Math.max(0, gross - federal - state);
 }
 
 // Returns one-time cost and annual drag from events at a given age
@@ -58,7 +114,8 @@ function calculatePath(scenario) {
 
   const { currentAssets, currentDebt } = collapseBalanceSheet(scenario);
   let wealth    = currentAssets - currentDebt;
-  const startAge = scenario.start_age || 25;
+  const startAge       = scenario.start_age || 25;
+  const careerStartAge = scenario.career_start_age ?? 22;
   const workAges = Array.from({ length: 46 }, (_, i) => startAge + i);
   const path     = new Array(startAge).fill(null); // nulls before user's age
   let retireBal = null, annualDrawn = 0;
@@ -68,11 +125,21 @@ function calculatePath(scenario) {
     const ev = getEventImpact(age, scenario.events);
 
     if (age < scenario.retire_age) {
-      const salary       = getSalary(effectiveJob, y);
-      const debtPayments = getDebtPayments(scenario.debts, y);
-      const savings      = Math.max(0, salary - (scenario.annual_expenses || 0) - debtPayments);
+      const yearsWorked  = Math.max(0, age - careerStartAge);
+      const salary       = getSalary(effectiveJob, yearsWorked);
+      const afterTax     = calcAfterTaxSalary(salary, scenario.state_code);
+      const debtPayments = getDebtPayments(scenario.debts, age, startAge);
+      const available    = Math.max(0, afterTax - debtPayments);
+      const savings      = Math.min(afterTax * (scenario.save_pct / 100), available);
+      // Future assets/debts entering the projection this year
+      const futureAssets = (scenario.assets || [])
+        .filter(a => a.start_age && a.start_age > startAge && a.start_age === age)
+        .reduce((sum, a) => sum + (a.value || 0), 0);
+      const futureDebts  = (scenario.debts || [])
+        .filter(d => d.start_age && d.start_age > startAge && d.start_age === age)
+        .reduce((sum, d) => sum + (d.balance || 0), 0);
       wealth = wealth * (1 + scenario.return_rate / 100)
-             + savings
+             + savings + futureAssets - futureDebts
              - ev.oneTime - ev.annual;
     } else {
       if (retireBal === null) { retireBal = wealth; annualDrawn = retireBal * 0.04; }

@@ -218,9 +218,12 @@ function renderActiveScenarioEditor() {
   const effS0   = s.custom_s0  != null ? s.custom_s0  : job.s0;
   const effS50  = s.custom_s50 != null ? s.custom_s50 : job.s50;
 
-  const totalDebtPmt  = (s.debts || []).reduce((sum, d) => sum + (d.monthly_payment || 0) * 12, 0);
-  const effSavings    = Math.max(0, effS0 - (s.annual_expenses || 0) - totalDebtPmt);
-  const estSavingsRate = effS0 > 0 ? Math.round(effSavings / effS0 * 100) : 0;
+  const takeHomeS0      = calcAfterTaxSalary(effS0, s.state_code);
+  const totalDebtPmt    = (s.debts || []).reduce((sum, d) => sum + (d.monthly_payment || 0) * 12, 0);
+  const availableToSave = Math.max(0, takeHomeS0 - totalDebtPmt);
+  const maxSavePct      = takeHomeS0 > 0 ? Math.floor(availableToSave / takeHomeS0 * 100) : 100;
+  const effectiveSavePct = Math.min(s.save_pct, maxSavePct);
+  const isCapped         = s.save_pct > maxSavePct && totalDebtPmt > 0;
 
   const financeCount = (s.assets || []).length + (s.debts || []).length;
   const eventCount   = (s.events || []).length;
@@ -264,11 +267,42 @@ function renderActiveScenarioEditor() {
         </div>
       </div>
 
-      <!-- Start Age -->
-      <div class="field" style="margin-bottom:14px;">
-        <label class="micro" style="display:block;margin-bottom:5px;">Your Current Age</label>
-        <input type="number" min="0" max="80" value="${s.start_age}" onchange="State.patchScenario({start_age:+this.value});renderProjChart()"/>
+      <!-- Start Age + State -->
+      <div class="field-row" style="margin-bottom:14px;">
+        <div class="field">
+          <label class="micro" style="display:block;margin-bottom:5px;">Your Current Age</label>
+          <input type="number" min="0" max="80" value="${s.start_age}" onchange="State.patchScenario({start_age:+this.value});renderActiveScenarioEditor();renderProjChart()"/>
+        </div>
+        <div class="field">
+          <label class="micro" style="display:block;margin-bottom:5px;">Career Start Age</label>
+          <input type="number" min="14" max="45" value="${s.career_start_age ?? 22}" onchange="State.patchScenario({career_start_age:+this.value});renderProjChart()"/>
+        </div>
+        <div class="field">
+          <label class="micro" style="display:block;margin-bottom:5px;">State</label>
+          <select onchange="State.patchScenario({state_code:this.value});renderActiveScenarioEditor();renderProjChart()">
+            ${[
+              ['none','No state tax'],
+              ['AL','Alabama'],['AK','Alaska'],['AZ','Arizona'],['AR','Arkansas'],
+              ['CA','California'],['CO','Colorado'],['CT','Connecticut'],['DE','Delaware'],
+              ['DC','D.C.'],['FL','Florida'],['GA','Georgia'],['HI','Hawaii'],
+              ['ID','Idaho'],['IL','Illinois'],['IN','Indiana'],['IA','Iowa'],
+              ['KS','Kansas'],['KY','Kentucky'],['LA','Louisiana'],['ME','Maine'],
+              ['MD','Maryland'],['MA','Massachusetts'],['MI','Michigan'],['MN','Minnesota'],
+              ['MS','Mississippi'],['MO','Missouri'],['MT','Montana'],['NE','Nebraska'],
+              ['NV','Nevada'],['NH','New Hampshire'],['NJ','New Jersey'],['NM','New Mexico'],
+              ['NY','New York'],['NC','North Carolina'],['ND','North Dakota'],['OH','Ohio'],
+              ['OK','Oklahoma'],['OR','Oregon'],['PA','Pennsylvania'],['RI','Rhode Island'],
+              ['SC','South Carolina'],['SD','South Dakota'],['TN','Tennessee'],['TX','Texas'],
+              ['UT','Utah'],['VT','Vermont'],['VA','Virginia'],['WA','Washington'],
+              ['WV','West Virginia'],['WI','Wisconsin'],['WY','Wyoming'],
+            ].map(([code, name]) => `<option value="${code}"${(s.state_code||'none')===code?' selected':''}>${name}</option>`).join('')}
+          </select>
+        </div>
       </div>
+      ${s.state_code && s.state_code !== 'none'
+        ? `<p class="micro" style="color:var(--muted2);margin-top:-10px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. take-home at start salary: ~${fmtM(Math.round(takeHomeS0))}/yr (fed + state tax)</p>`
+        : `<p class="micro" style="color:var(--muted2);margin-top:-10px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. take-home at start salary: ~${fmtM(Math.round(takeHomeS0))}/yr (federal tax only)</p>`
+      }
 
       <!-- ── Career ── -->
       ${secHdr('career', 'Career')}
@@ -291,12 +325,13 @@ function renderActiveScenarioEditor() {
         </div>
         ${!isCustom ? `<p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Estimated salary — adjust if needed</p>` : ''}
         <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Annual Spending ($)</label>
-          <input type="number" value="${s.annual_expenses || 0}"
-            onchange="State.patchScenario({annual_expenses:+this.value});renderProjChart()"/>
-          <p class="micro" style="color:var(--muted2);margin-top:5px;text-transform:none;letter-spacing:0;font-size:11px;">
-            Est. savings at start salary: ~${fmtM(effSavings)}/yr (~${estSavingsRate}%)
-          </p>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <label class="micro">Savings Rate</label>
+            <span class="micro num" id="sl-sp" style="color:${isCapped ? 'var(--coral)' : 'var(--text)'}">${effectiveSavePct}%${isCapped ? ` (capped)` : ''}</span>
+          </div>
+          <input type="range" min="0" max="70" value="${s.save_pct}"
+            oninput="updSlider('save_pct',this.value,'sp','%')"/>
+          ${isCapped ? `<p class="micro" style="color:var(--coral);margin-top:4px;text-transform:none;letter-spacing:0;font-size:11px;">Debt payments leave ~${maxSavePct}% max saveable at your starting salary</p>` : ''}
         </div>
       </div>
 
@@ -333,6 +368,12 @@ function renderActiveScenarioEditor() {
             <input type="number" id="asset-rate" placeholder="7" value="7" step="0.5"/>
           </div>
         </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Acquired at age</label>
+            <input type="number" id="asset-start-age" placeholder="${s.start_age} (now)"/>
+          </div>
+        </div>
         <button class="btn btn-primary" style="margin-bottom:16px;" onclick="addAsset()">Add Asset</button>
         <div id="assets-list"></div>
 
@@ -364,6 +405,12 @@ function renderActiveScenarioEditor() {
           <div class="field">
             <label class="micro" style="display:block;margin-bottom:5px;">Monthly Payment ($)</label>
             <input type="number" id="debt-pmt" placeholder="0"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Started at age</label>
+            <input type="number" id="debt-start-age" placeholder="${s.start_age} (now)"/>
           </div>
         </div>
         <button class="btn btn-primary" style="margin-bottom:16px;" onclick="addDebt()">Add Debt</button>

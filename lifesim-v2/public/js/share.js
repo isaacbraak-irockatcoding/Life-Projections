@@ -18,6 +18,11 @@ function renderShareTab() {
   const finalWl = result.path[result.path.length - 1];
 
   el.innerHTML = `
+    <div class="card fade-up" style="margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">📖 Your Life Story</div>
+      ${generateRecap(scenario)}
+    </div>
+
     <div class="share-card fade-up">
       <div class="share-badge">🔗 Share your scenario</div>
       <h2>${scenario.name}</h2>
@@ -50,7 +55,7 @@ function renderShareTab() {
     </div>
 
     <div class="disclaimer" style="margin-top:14px;">
-      ⚠️ <span>Educational use only. Not financial advice. Projections assume constant returns and do not account for taxes, fees, or market volatility.</span>
+      ⚠️ <span>Educational use only. Not financial advice. Projections use simplified 2024 federal tax brackets and approximate state effective rates. Does not account for filing status, deductions beyond standard, FICA, investment fees, or market volatility.</span>
     </div>
 
     <div style="text-align:center;margin-top:20px;">
@@ -229,4 +234,144 @@ function exportChart(canvasId, filename) {
 
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Funny life recap generator ─────────────────────────────────────────────
+function generateRecap(scenario) {
+  const v = (arr) => arr[scenario.id % arr.length];
+
+  const job     = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
+  const jobName = scenario.job_id === 'custom' ? 'your mystery career' : job.name;
+  const s0      = scenario.custom_s0 != null ? scenario.custom_s0 : job.s0;
+  const result  = calculatePath(scenario);
+  const finalWl = result.path[result.path.length - 1];
+  const debts   = scenario.debts  || [];
+  const events  = scenario.events || [];
+  const totalDebt = debts.reduce((s, d) => s + (d.balance || 0), 0);
+  const savePct   = scenario.save_pct || 0;
+  const retireAge = scenario.retire_age;
+
+  const lines = [];
+
+  // ── 1. Career opener ──
+  const careerLines = {
+    sw_eng:      v(["You chose software engineering. Good call — your future is just debugging things until you die, but at least you'll be paid well.", "A software engineer. Rich, perpetually indoors, and your idea of 'touching grass' is a Slack status update."]),
+    nurse:       v(["You picked nursing. The pay is solid, the hours are brutal, and you will hear things that cannot be unheard.", "A nurse. Genuinely one of the most important jobs on earth. Also one of the most exhausting. Respect."]),
+    electrician: v(["You went into electrical work. Everyone needs you, nobody appreciates you until the lights go out.", "An electrician — a noble trade. You'll never be unemployed, and your jokes about ohms resistance will land with exactly zero people."]),
+    acc:         v(["You chose accounting. Tax season will haunt your dreams, but at least you'll have a stable income to afford therapy.", "An accountant. The world runs on numbers, and so do you. You've probably already optimized this sentence for tax purposes."]),
+    teacher:     v(["You went into teaching. Bold. Brave. Possibly delusional about the pay. But someone has to do it.", "A teacher. You'll shape young minds and spend your own money on classroom supplies. A true hero with a very modest investment portfolio."]),
+    doctor:      v(["You became a physician. Years of training, mountains of debt, and now you're the person at parties everyone asks for free medical advice.", "A doctor. You'll earn serious money — eventually — after med school, residency, and roughly one million hours of lost sleep."]),
+    plumber:     v(["A plumber. When things go wrong in people's homes, you're the one they call in a panic. Power move.", "You chose plumbing. Recession-proof, in-demand, and you'll see things in people's pipes that money cannot unsee."]),
+    designer:    v(["You went into design. You'll spend your career making things beautiful while clients ask you to 'make the logo bigger.'", "A UX designer. You care deeply about user experience, and yet somehow you're still using a 47-step morning routine app."]),
+    lawyer:      v(["You chose law. Long hours, billable by the minute, and a wardrobe that means business. Welcome to the grind.", "A lawyer. You'll argue for a living, which means you've basically been training your whole life."]),
+    custom:      v(["You're charting your own path with a custom salary. Mysterious. Intriguing. We respect the hustle.", "A custom career? Nobody puts you in a box. Except maybe your accountant."]),
+  };
+  lines.push(careerLines[scenario.job_id] || `You chose ${jobName}. Interesting career choice. We support it.`);
+
+  // ── 2. Salary & savings line ──
+  if (savePct <= 5) {
+    lines.push(v([
+      `You're saving ${savePct}% of your salary. That's… a number. A very small number. But hey, you're technically saving.`,
+      `With a ${savePct}% savings rate, you're basically telling compound interest to take a seat. Bold strategy.`,
+    ]));
+  } else if (savePct <= 15) {
+    lines.push(v([
+      `A ${savePct}% savings rate — not bad. You're saving something, which puts you ahead of a concerning portion of the population.`,
+      `You're saving ${savePct}% of your income. Respectable. The latte isn't going to sacrifice itself, but this is still solid.`,
+    ]));
+  } else if (savePct <= 30) {
+    lines.push(v([
+      `${savePct}% savings rate? Now we're talking. Future you is already planning a very smug retirement speech.`,
+      `You're putting away ${savePct}% of your paycheck. Genuinely impressive. You clearly own a budget spreadsheet you actually use.`,
+    ]));
+  } else {
+    lines.push(v([
+      `${savePct}% savings rate. Do you eat? Sleep? Exist outside of a Roth IRA? Respect, but also: are you okay?`,
+      `Saving ${savePct}% of your income is an extreme sport. Future you is going to be insufferably wealthy.`,
+    ]));
+  }
+
+  // ── 3. Debt / events line ──
+  const mortgage = debts.find(d => d.type === 'mortgage');
+  const studentLoan = debts.find(d => d.type === 'student_loan');
+  const carLoan  = debts.find(d => d.type === 'auto');
+  const houseEvent = events.find(e => e.event_type === 'house_purchase');
+  const kidsEvent  = events.find(e => e.event_type === 'children');
+  const marriageEvent = events.find(e => e.event_type === 'marriage');
+
+  if (debts.length >= 3) {
+    lines.push(`You're juggling ${debts.length} separate debts totalling ${fmtM(totalDebt)}. You absolute chaos agent. The banks love you.`);
+  } else if (mortgage) {
+    lines.push(v([
+      `You've got a mortgage of ${fmtM(mortgage.balance)}. Congratulations on your 30-year relationship with a bank. It's basically a marriage.`,
+      `That ${fmtM(mortgage.balance)} mortgage means you now own a home — or more accurately, a bank owns it and lets you sleep there.`,
+    ]));
+  } else if (studentLoan) {
+    lines.push(v([
+      `${fmtM(studentLoan.balance)} in student loans. Somewhere, a university admin is buying a boat with your tuition.`,
+      `You've got ${fmtM(studentLoan.balance)} in student debt. The degree was worth it. Probably. We hope.`,
+    ]));
+  } else if (carLoan) {
+    lines.push(`There's a ${fmtM(carLoan.balance)} auto loan in the mix. Nothing says adulting like paying interest on something that loses value while you sleep.`);
+  } else if (houseEvent) {
+    lines.push(`You're planning to buy a house at ${houseEvent.at_age}. Smart. Terrifying. The same thing, really.`);
+  } else if (kidsEvent && marriageEvent) {
+    lines.push(`Marriage AND kids in the timeline? Bold. Beautiful. Your bank account will never be the same.`);
+  } else if (kidsEvent) {
+    lines.push(`Kids are in the plan. Expensive, loud, and will one day argue with you at the dinner table about your investment choices.`);
+  } else if (marriageEvent) {
+    lines.push(`Marriage is on the horizon. Love is beautiful. The joint tax filing is… also fine.`);
+  } else if (events.length > 0) {
+    lines.push(`You've got ${events.length} life event${events.length > 1 ? 's' : ''} planned. Life is happening whether your spreadsheet is ready or not.`);
+  }
+
+  // ── 4. Retirement line ──
+  if (retireAge <= 45) {
+    lines.push(v([
+      `You're planning to retire at ${retireAge}. Either you've cracked the code or you're wildly optimistic. Either way, we're rooting for you.`,
+      `Retirement at ${retireAge}? That's the kind of confidence that comes from either a trust fund or a very aggressive savings rate. Respect.`,
+    ]));
+  } else if (retireAge <= 55) {
+    lines.push(v([
+      `Retiring at ${retireAge} — solidly in FIRE territory. You've done the math and the math said "get out early." Wise.`,
+      `Age ${retireAge} for retirement. You're not waiting until you're too tired to enjoy it. Smart human.`,
+    ]));
+  } else if (retireAge <= 65) {
+    lines.push(v([
+      `You're targeting retirement at ${retireAge}. A classic, sensible, socially acceptable retirement age. Very adult of you.`,
+      `Retiring at ${retireAge}. Right on schedule. Your financial advisor is nodding approvingly somewhere.`,
+    ]));
+  } else {
+    lines.push(v([
+      `Retirement at ${retireAge}. You plan to work well into your golden years. Either you love what you do, or the math didn't work out. Hopefully the former.`,
+      `Age ${retireAge} to retire. Most people your projected age will be golfing. You'll still be in meetings. We admire the dedication.`,
+    ]));
+  }
+
+  // ── 5. Wealth closer ──
+  if (finalWl >= 5_000_000) {
+    lines.push(v([
+      `Projected final wealth: ${fmtM(finalWl)}. Generational. Your grandchildren will argue about the will before you're even gone.`,
+      `${fmtM(finalWl)} at the end of this path. You're not just set — you're set, laminated, and framed on a wall.`,
+    ]));
+  } else if (finalWl >= 2_000_000) {
+    lines.push(v([
+      `Ending up with ${fmtM(finalWl)}. Solidly wealthy. You will never have to pretend to enjoy camping to save money.`,
+      `${fmtM(finalWl)} projected. Comfortable, secure, and smug in the best possible way.`,
+    ]));
+  } else if (finalWl >= 500_000) {
+    lines.push(v([
+      `${fmtM(finalWl)} projected. Not quite "yacht money," but definitely "nice vacation without checking the price" money.`,
+      `You're looking at ${fmtM(finalWl)} at the end of the road. Respectable. Solid. The dream, honestly.`,
+    ]));
+  } else if (finalWl >= 0) {
+    lines.push(v([
+      `Projected final wealth: ${fmtM(finalWl)}. Not the number that launches a dynasty, but it's something. Progress is progress.`,
+      `You'll end with ${fmtM(finalWl)}. It's a journey, not just a destination. Although the destination could be bigger. Just saying.`,
+    ]));
+  } else {
+    lines.push(`The projection shows negative wealth at the end. This is fine. Everything is fine. Have you considered adjusting the savings rate?`);
+  }
+
+  return lines.map(l => `<p style="font-size:13px;line-height:1.7;margin:0 0 10px;color:var(--text);">${l}</p>`).join('');
 }

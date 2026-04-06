@@ -13,12 +13,12 @@ function ownScenario(scenarioId, userId) {
 router.post('/:scenarioId/assets', (req, res, next) => {
   try {
     if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
-    const { type = 'other', label, value = 0, annual_contribution = 0, expected_return_rate = 7 } = req.body;
+    const { type = 'other', label, value = 0, annual_contribution = 0, expected_return_rate = 7, start_age = null } = req.body;
     if (!label) return res.status(400).json({ error: 'label is required' });
     const r = db.prepare(`
-      INSERT INTO assets (scenario_id, type, label, value, annual_contribution, expected_return_rate)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(req.params.scenarioId, type, label, value, annual_contribution, expected_return_rate);
+      INSERT INTO assets (scenario_id, type, label, value, annual_contribution, expected_return_rate, start_age)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(req.params.scenarioId, type, label, value, annual_contribution, expected_return_rate, start_age);
     res.status(201).json(db.prepare('SELECT * FROM assets WHERE id = ?').get(r.lastInsertRowid));
   } catch (err) { next(err); }
 });
@@ -27,7 +27,7 @@ router.post('/:scenarioId/assets', (req, res, next) => {
 router.patch('/:scenarioId/assets/:id', (req, res, next) => {
   try {
     if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
-    const allowed = ['type','label','value','annual_contribution','expected_return_rate'];
+    const allowed = ['type','label','value','annual_contribution','expected_return_rate','start_age'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets = fields.map(f => `${f} = ?`).join(', ');
