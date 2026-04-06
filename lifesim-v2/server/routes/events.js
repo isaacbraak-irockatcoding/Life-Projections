@@ -33,29 +33,32 @@ router.post('/:scenarioId/events', (req, res, next) => {
       event_type = 'custom', name, emoji = '📌', at_age,
       one_time_cost = 0, duration_years = 1, color = '#38bdf8',
       home_value = 0, home_appreciation_rate = 3,
-      mortgage_rate = 7, mortgage_years = 30
+      mortgage_rate = 7, mortgage_years = 30,
+      annual_cost_pct = 3
     } = req.body;
     if (!name || at_age == null) return res.status(400).json({ error: 'name and at_age are required' });
 
-    // For house purchases, auto-calculate annual costs as 3% of home value
+    // For house purchases, auto-calculate annual costs from percentage of home value
     const annual_impact = event_type === 'house_purchase' && home_value > 0
-      ? Math.round(home_value * 0.03)
+      ? Math.round(home_value * annual_cost_pct / 100)
       : (req.body.annual_impact || 0);
 
     const r = db.prepare(`
       INSERT INTO events (scenario_id, event_type, name, emoji, at_age, one_time_cost,
                           annual_impact, duration_years, color, home_value, home_appreciation_rate,
-                          mortgage_rate, mortgage_years)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          mortgage_rate, mortgage_years, annual_cost_pct)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(req.params.scenarioId, event_type, name, emoji, at_age,
            one_time_cost, annual_impact, duration_years, color,
-           home_value, home_appreciation_rate, mortgage_rate, mortgage_years);
+           home_value, home_appreciation_rate, mortgage_rate, mortgage_years, annual_cost_pct);
 
     const event = db.prepare('SELECT * FROM events WHERE id = ?').get(r.lastInsertRowid);
 
-    // Auto-create mortgage debt for house purchases
     let mortgage_debt = null;
+    let home_asset = null;
+
     if (event_type === 'house_purchase' && home_value > 0) {
+      // Auto-create mortgage debt
       const principal = Math.max(0, home_value - one_time_cost);
       if (principal > 0) {
         const monthly_payment = calcMortgagePayment(principal, mortgage_rate, mortgage_years);
@@ -66,9 +69,16 @@ router.post('/:scenarioId/events', (req, res, next) => {
                mortgage_rate, Math.round(monthly_payment * 100) / 100, at_age, event.id);
         mortgage_debt = db.prepare('SELECT * FROM debts WHERE id = ?').get(dr.lastInsertRowid);
       }
+
+      // Auto-create Real Estate asset (tagged with event_id so engine skips it — tracked via homes[])
+      const ar = db.prepare(`
+        INSERT INTO assets (scenario_id, type, label, value, expected_return_rate, start_age, event_id)
+        VALUES (?, 'real_estate', ?, ?, ?, ?, ?)
+      `).run(req.params.scenarioId, name, home_value, home_appreciation_rate, at_age, event.id);
+      home_asset = db.prepare('SELECT * FROM assets WHERE id = ?').get(ar.lastInsertRowid);
     }
 
-    res.status(201).json({ ...event, mortgage_debt });
+    res.status(201).json({ ...event, mortgage_debt, home_asset });
   } catch (err) { next(err); }
 });
 
@@ -77,7 +87,7 @@ router.patch('/:scenarioId/events/:id', (req, res, next) => {
   try {
     if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
     const allowed = ['event_type','name','emoji','at_age','one_time_cost','annual_impact','duration_years','color',
-                     'home_value','home_appreciation_rate','mortgage_rate','mortgage_years'];
+                     'home_value','home_appreciation_rate','mortgage_rate','mortgage_years','annual_cost_pct'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets = fields.map(f => `${f} = ?`).join(', ');
@@ -93,19 +103,27 @@ router.delete('/:scenarioId/events/:id', (req, res, next) => {
   try {
     if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
 
-    // Find any auto-created mortgage debts linked to this event
+    // Find and delete any auto-created mortgage debts
     const linkedDebts = db.prepare('SELECT id FROM debts WHERE event_id = ? AND scenario_id = ?')
       .all(req.params.id, req.params.scenarioId);
     const deleted_debt_ids = linkedDebts.map(d => d.id);
-
-    // Delete linked debts then the event
     if (deleted_debt_ids.length) {
       db.prepare('DELETE FROM debts WHERE event_id = ? AND scenario_id = ?')
         .run(req.params.id, req.params.scenarioId);
     }
+
+    // Find and delete any auto-created assets
+    const linkedAssets = db.prepare('SELECT id FROM assets WHERE event_id = ? AND scenario_id = ?')
+      .all(req.params.id, req.params.scenarioId);
+    const deleted_asset_ids = linkedAssets.map(a => a.id);
+    if (deleted_asset_ids.length) {
+      db.prepare('DELETE FROM assets WHERE event_id = ? AND scenario_id = ?')
+        .run(req.params.id, req.params.scenarioId);
+    }
+
     db.prepare('DELETE FROM events WHERE id = ? AND scenario_id = ?').run(req.params.id, req.params.scenarioId);
 
-    res.json({ deleted_debt_ids });
+    res.json({ deleted_debt_ids, deleted_asset_ids });
   } catch (err) { next(err); }
 });
 

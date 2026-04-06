@@ -469,6 +469,13 @@ function renderActiveScenarioEditor() {
             </div>
           </div>
           <div class="field-row">
+            <div class="field" style="max-width:50%">
+              <label class="micro" style="display:block;margin-bottom:5px;">Annual Ownership Cost (%)</label>
+              <input type="number" id="ev-annual-cost-pct" placeholder="3" step="0.5" min="0" max="20"
+                oninput="updateMortgagePreview()"/>
+            </div>
+          </div>
+          <div class="field-row">
             <div class="field">
               <label class="micro" style="display:block;margin-bottom:5px;">Mortgage Rate (%)</label>
               <input type="number" id="ev-mortgage-rate" placeholder="7" step="0.25" oninput="updateMortgagePreview()"/>

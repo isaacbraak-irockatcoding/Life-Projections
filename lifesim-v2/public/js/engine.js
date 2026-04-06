@@ -16,7 +16,7 @@ function getSalary(job, yearsWorked) {
 function collapseBalanceSheet(scenario) {
   const s = scenario.start_age || 25;
   const currentAssets = (scenario.assets || [])
-    .filter(a => !a.start_age || a.start_age <= s)
+    .filter(a => (!a.start_age || a.start_age <= s) && !a.event_id)
     .reduce((sum, a) => sum + (a.value || 0), 0);
   const currentDebt = (scenario.debts || [])
     .filter(d => !d.start_age || d.start_age <= s)
@@ -144,10 +144,10 @@ function calculatePath(scenario) {
       const savings      = Math.min(afterTax * (scenario.save_pct / 100), available);
       // Future assets/debts entering the projection this year
       const futureAssets = (scenario.assets || [])
-        .filter(a => a.start_age && a.start_age > startAge && a.start_age === age)
+        .filter(a => a.start_age && a.start_age > startAge && a.start_age === age && !a.event_id)
         .reduce((sum, a) => sum + (a.value || 0), 0);
       const futureDebts  = (scenario.debts || [])
-        .filter(d => d.start_age && d.start_age > startAge && d.start_age === age)
+        .filter(d => d.start_age && d.start_age > startAge && d.start_age === age && !d.event_id)
         .reduce((sum, d) => sum + (d.balance || 0), 0);
       wealth = wealth * (1 + scenario.return_rate / 100)
              + savings + futureAssets - futureDebts
