@@ -67,7 +67,9 @@ function renderFriendsList(friends, pending, el) {
     <button class="btn btn-ghost" onclick="sendFriendRequest()">Send Request</button>
   </div>`;
 
+  html += `<div id="groups-section"></div>`;
   document.getElementById('friends-content').innerHTML = html;
+  renderGroupsSection(document.getElementById('groups-section'));
 }
 
 async function acceptFriend(requesterId) {

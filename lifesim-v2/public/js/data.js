@@ -20,7 +20,7 @@ const EVENT_COLORS = ['#38bdf8', '#f472b6', '#34d399', '#fb923c', '#e879f9', '#f
 const AVATARS = ['🦊', '🚀', '💎', '🌊', '✨', '🍀', '🦁', '🎯', '🐋', '🪐'];
 
 const EVENT_TYPES = [
-  { id: 'house_purchase', label: 'House Purchase', emoji: '🏠', defaultCost: 60000, defaultAnnual: -18000, defaultYears: 30 },
+  { id: 'house_purchase', label: 'House Purchase', emoji: '🏠', defaultCost: 60000, defaultAnnual: -18000, defaultYears: 30, defaultHomeValue: 400000, defaultAppreciationRate: 3 },
 { id: 'inheritance',    label: 'Inheritance',    emoji: '💰', defaultCost: -50000, defaultAnnual: 0,     defaultYears: 1  },
   { id: 'marriage',       label: 'Marriage',       emoji: '💍', defaultCost: 25000, defaultAnnual: 0,      defaultYears: 1  },
   { id: 'children',       label: 'Children',       emoji: '👶', defaultCost: 15000, defaultAnnual: -10000, defaultYears: 18 },

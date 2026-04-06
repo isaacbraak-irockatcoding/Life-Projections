@@ -73,5 +73,13 @@ const api = (() => {
     sendFriendRequest:(username) => request('POST', '/api/friends/request', { username }),
     acceptFriend:  (rid)      => request('POST',   `/api/friends/accept/${rid}`),
     removeFriend:  (uid)      => request('DELETE', `/api/friends/${uid}`),
+
+    createGroup:       (name)             => request('POST',   '/api/groups', { name }),
+    listGroups:        ()                 => request('GET',    '/api/groups'),
+    getGroup:          (id)               => request('GET',    `/api/groups/${id}`),
+    joinGroup:         (join_code)        => request('POST',   '/api/groups/join', { join_code }),
+    publishToGroup:    (gid, scenario_id) => request('PATCH',  `/api/groups/${gid}/publish`, { scenario_id }),
+    removeGroupMember: (gid, uid)         => request('DELETE', `/api/groups/${gid}/members/${uid}`),
+    deleteGroup:       (gid)              => request('DELETE', `/api/groups/${gid}`),
   };
 })();

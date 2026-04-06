@@ -10,6 +10,7 @@ const assetsRoutes = require('./routes/assets');
 const debtsRoutes = require('./routes/debts');
 const shareRoutes = require('./routes/share');
 const friendsRoutes = require('./routes/friends');
+const groupsRoutes  = require('./routes/groups');
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use('/api/scenarios', assetsRoutes);
 app.use('/api/scenarios', debtsRoutes);
 app.use('/api', shareRoutes);
 app.use('/api/friends', friendsRoutes);
+app.use('/api/groups',  groupsRoutes);
 
 // SPA fallback — serve index.html for any non-API route
 app.get('*', (req, res) => {

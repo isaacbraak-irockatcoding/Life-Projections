@@ -120,8 +120,19 @@ function calculatePath(scenario) {
   const path     = new Array(startAge).fill(null); // nulls before user's age
   let retireBal = null, annualDrawn = 0;
 
+  // Track house purchases as separately-appreciating assets
+  const homes = []; // { value, rate }
+
   workAges.forEach((age, y) => {
-    path.push(Math.round(wealth));
+    // Register any house purchases happening this age before pushing to path
+    (scenario.events || []).forEach(e => {
+      if (e.event_type === 'house_purchase' && e.at_age === age && (e.home_value || 0) > 0) {
+        homes.push({ value: e.home_value, rate: e.home_appreciation_rate || 3 });
+      }
+    });
+
+    const homeTotal = homes.reduce((s, h) => s + h.value, 0);
+    path.push(Math.round(wealth + homeTotal));
     const ev = getEventImpact(age, scenario.events);
 
     if (age < scenario.retire_age) {
@@ -142,9 +153,16 @@ function calculatePath(scenario) {
              + savings + futureAssets - futureDebts
              - ev.oneTime - ev.annual;
     } else {
-      if (retireBal === null) { retireBal = wealth; annualDrawn = retireBal * 0.04; }
+      if (retireBal === null) {
+        const homeTotal2 = homes.reduce((s, h) => s + h.value, 0);
+        retireBal = wealth + homeTotal2;
+        annualDrawn = retireBal * 0.04;
+      }
       wealth = wealth * (1 + scenario.return_rate / 100) - annualDrawn;
     }
+
+    // Appreciate homes at end of each year
+    homes.forEach(h => { h.value *= (1 + h.rate / 100); });
   });
 
   return { path, annualDrawn };

@@ -107,3 +107,31 @@ ALTER TABLE scenarios ADD COLUMN state_code TEXT NOT NULL DEFAULT 'none';
 ALTER TABLE scenarios ADD COLUMN career_start_age INTEGER NOT NULL DEFAULT 22;
 ALTER TABLE assets ADD COLUMN start_age INTEGER;
 ALTER TABLE debts  ADD COLUMN start_age INTEGER;
+ALTER TABLE events ADD COLUMN home_value REAL NOT NULL DEFAULT 0;
+ALTER TABLE events ADD COLUMN home_appreciation_rate REAL NOT NULL DEFAULT 3;
+ALTER TABLE events ADD COLUMN mortgage_rate REAL NOT NULL DEFAULT 7;
+ALTER TABLE events ADD COLUMN mortgage_years INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE debts ADD COLUMN event_id INTEGER;
+
+-- Groups feature
+CREATE TABLE IF NOT EXISTS groups (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  name       TEXT    NOT NULL,
+  owner_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  join_code  TEXT    NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL DEFAULT (unixepoch())
+);
+
+CREATE TABLE IF NOT EXISTS group_members (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id     INTEGER NOT NULL REFERENCES groups(id) ON DELETE CASCADE,
+  user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  share_token  TEXT,
+  joined_at    INTEGER NOT NULL DEFAULT (unixepoch()),
+  UNIQUE(group_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_groups_owner    ON groups(owner_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_g ON group_members(group_id);
+CREATE INDEX IF NOT EXISTS idx_group_members_u ON group_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_group_join_code ON groups(join_code);

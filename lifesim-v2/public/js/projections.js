@@ -443,15 +443,44 @@ function renderActiveScenarioEditor() {
         </div>
         <div class="field-row">
           <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">One-time Cost ($)</label>
+            <label class="micro" id="ev-cost-label" style="display:block;margin-bottom:5px;">One-time Cost ($)</label>
             <input type="number" id="ev-cost" placeholder="0"/>
           </div>
-          <div class="field">
+          <div id="ev-annual-field" class="field">
             <label class="micro" style="display:block;margin-bottom:5px;">Annual Impact ($)</label>
             <input type="number" id="ev-annual" placeholder="0"/>
           </div>
         </div>
-        <p style="font-size:11px;color:var(--muted2);margin-bottom:10px;">
+        <div id="ev-years-field" class="field-row">
+          <div class="field" style="max-width:50%">
+            <label class="micro" style="display:block;margin-bottom:5px;">Duration (yrs)</label>
+            <input type="number" id="ev-years" value="1" min="1" max="50"/>
+          </div>
+        </div>
+        <div id="ev-house-fields" style="display:none;">
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Home Value ($)</label>
+              <input type="number" id="ev-home-value" placeholder="400000" oninput="updateMortgagePreview()"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Appreciation Rate (%)</label>
+              <input type="number" id="ev-home-appreciation" placeholder="3" step="0.5"/>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Mortgage Rate (%)</label>
+              <input type="number" id="ev-mortgage-rate" placeholder="7" step="0.25" oninput="updateMortgagePreview()"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Mortgage Term (yrs)</label>
+              <input type="number" id="ev-mortgage-years" placeholder="30" oninput="updateMortgagePreview()"/>
+            </div>
+          </div>
+          <p id="ev-mortgage-preview" style="font-size:11px;color:var(--accent);margin-bottom:10px;"></p>
+        </div>
+        <p id="ev-cost-hint" style="font-size:11px;color:var(--muted2);margin-bottom:10px;">
           Positive = expense. For inheritance or income events, enter as positive — the app flips the sign.
         </p>
         <button class="btn btn-primary" style="margin-bottom:16px;" onclick="addEvent()">Add to Timeline</button>
