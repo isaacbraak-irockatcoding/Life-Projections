@@ -1,11 +1,9 @@
 /* ══════════════════════════════════════════════
    mc.worker.js — Monte Carlo simulation worker
-   Self-contained: duplicates getSalary and
-   getEventImpact from engine.js intentionally
-   to avoid importScripts complexity.
+   Self-contained: duplicates helpers from engine.js
+   intentionally to avoid importScripts complexity.
 ══════════════════════════════════════════════ */
 
-// Duplicated from engine.js (intentional — Web Worker isolation)
 function getSalary(job, yearsWorked) {
   if (yearsWorked <= 0)  return job.s0;
   if (yearsWorked <= 35) return job.s0 + (job.s35 - job.s0) * (yearsWorked / 35);
@@ -21,15 +19,47 @@ function getEventImpact(age, events) {
   return { oneTime, annual };
 }
 
-function collapseBalanceSheet(scenario) {
-  const s = scenario.start_age || 25;
-  const currentAssets = (scenario.assets || [])
-    .filter(a => !a.start_age || a.start_age <= s)
-    .reduce((sum, a) => sum + (a.value || 0), 0);
-  const currentDebt = (scenario.debts || [])
-    .filter(d => !d.start_age || d.start_age <= s)
-    .reduce((sum, d) => sum + (d.balance || 0), 0);
-  return { currentAssets, currentDebt };
+function getDebtPayments(debts, age, scenarioStartAge) {
+  return (debts || []).reduce((sum, d) => {
+    const debtStart = d.start_age || scenarioStartAge;
+    if (age < debtStart) return sum;
+    if (!d.monthly_payment || d.monthly_payment <= 0) return sum;
+    const yearIndex = age - debtStart;
+    const r = d.interest_rate / 100 / 12;
+    let payoffMonths;
+    if (r === 0) {
+      payoffMonths = d.balance / d.monthly_payment;
+    } else if (r * d.balance >= d.monthly_payment) {
+      return sum + d.monthly_payment * 12;
+    } else {
+      payoffMonths = -Math.log(1 - r * d.balance / d.monthly_payment) / Math.log(1 + r);
+    }
+    return yearIndex * 12 < payoffMonths ? sum + d.monthly_payment * 12 : sum;
+  }, 0);
+}
+
+function getRemainingDebtBalance(debts, age, scenarioStartAge) {
+  return (debts || []).reduce((sum, d) => {
+    const debtStart = d.start_age || scenarioStartAge;
+    if (age < debtStart) return sum;
+    if (!d.monthly_payment || d.monthly_payment <= 0) return sum + (d.balance || 0);
+    const r = d.interest_rate / 100 / 12;
+    const monthsElapsed = (age - debtStart) * 12;
+    let payoffMonths;
+    if (r === 0) {
+      payoffMonths = (d.balance || 0) / d.monthly_payment;
+    } else if (r * (d.balance || 0) >= d.monthly_payment) {
+      return sum + (d.balance || 0);
+    } else {
+      payoffMonths = -Math.log(1 - r * (d.balance || 0) / d.monthly_payment) / Math.log(1 + r);
+    }
+    if (monthsElapsed >= payoffMonths) return sum;
+    const remaining = r === 0
+      ? Math.max(0, (d.balance || 0) - d.monthly_payment * monthsElapsed)
+      : Math.max(0, (d.balance || 0) * Math.pow(1 + r, monthsElapsed)
+          - d.monthly_payment * ((Math.pow(1 + r, monthsElapsed) - 1) / r));
+    return sum + remaining;
+  }, 0);
 }
 
 function calcFederalTax(gross) {
@@ -71,25 +101,6 @@ function calcAfterTaxSalary(gross, stateCode) {
   return Math.max(0, gross - federal - state);
 }
 
-function getDebtPayments(debts, age, scenarioStartAge) {
-  return (debts || []).reduce((sum, d) => {
-    const debtStart = d.start_age || scenarioStartAge;
-    if (age < debtStart) return sum;
-    if (!d.monthly_payment || d.monthly_payment <= 0) return sum;
-    const yearIndex = age - debtStart;
-    const r = d.interest_rate / 100 / 12;
-    let payoffMonths;
-    if (r === 0) {
-      payoffMonths = d.balance / d.monthly_payment;
-    } else if (r * d.balance >= d.monthly_payment) {
-      return sum + d.monthly_payment * 12;
-    } else {
-      payoffMonths = -Math.log(1 - r * d.balance / d.monthly_payment) / Math.log(1 + r);
-    }
-    return yearIndex * 12 < payoffMonths ? sum + d.monthly_payment * 12 : sum;
-  }, 0);
-}
-
 // Box-Muller normal distribution generator
 function randNormal(mean, std) {
   let u = 0, v = 0;
@@ -98,7 +109,6 @@ function randNormal(mean, std) {
   return mean + std * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
-// JOBS list (duplicated subset — only id and salary fields needed)
 const JOBS = [
   { id: 'sw_eng',      s0: 95000,  s35: 195000, s50: 220000 },
   { id: 'nurse',       s0: 72000,  s35: 115000, s50: 128000 },
@@ -113,49 +123,92 @@ const JOBS = [
 ];
 
 onmessage = function({ data: { scenario, vol, simCount } }) {
-  const job = (() => {
-    const base = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
-    if (scenario.job_id === 'custom' && scenario.custom_s0) {
-      return { ...base, s0: scenario.custom_s0, s35: scenario.custom_s35 || base.s35, s50: scenario.custom_s50 || base.s50 };
-    }
-    return base;
-  })();
+  const base = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
+  const job  = scenario.custom_s0
+    ? { ...base, s0: scenario.custom_s0, s35: scenario.custom_s35 || base.s35, s50: scenario.custom_s50 || base.s50 }
+    : base;
 
-  const { currentAssets, currentDebt } = collapseBalanceSheet(scenario);
   const volDecimal     = (vol || 12) / 100;
   const startAge       = scenario.start_age || 25;
   const careerStartAge = scenario.career_start_age ?? 22;
+  const retireAge      = scenario.retire_age || 65;
+  const returnRate     = scenario.return_rate / 100;
+  const savePct        = scenario.save_pct / 100;
   const ages = Array.from({ length: 46 }, (_, i) => startAge + i);
 
+  // Snapshot of initial asset pool definitions (deep-copied per simulation)
+  const initialPools = (scenario.assets || [])
+    .filter(a => (!a.start_age || a.start_age <= startAge) && !a.event_id)
+    .map(a => ({
+      id: a.id, start_age: a.start_age,
+      rate:    (a.expected_return_rate || 7) / 100,
+      contrib: a.annual_contribution || 0,
+      value:   a.value || 0,
+    }));
+
   const paths = [];
+
   for (let sim = 0; sim < simCount; sim++) {
-    let wealth = currentAssets - currentDebt;
+    // Deep copy asset pools for this simulation run
+    const assetPools = initialPools.map(a => ({ ...a }));
+    let savingsPool  = 0;
     let retBal = null, drawn = 0;
-    const path = [];
-    ages.forEach((age, y) => {
-      path.push(Math.round(wealth));
-      const r  = randNormal(scenario.return_rate / 100, volDecimal);
+    const homes = [];
+    const path  = [];
+
+    ages.forEach(age => {
+      // Register house purchases
+      (scenario.events || []).forEach(e => {
+        if (e.event_type === 'house_purchase' && e.at_age === age && (e.home_value || 0) > 0) {
+          homes.push({ value: e.home_value, rate: e.home_appreciation_rate || 3 });
+        }
+      });
+
+      const assetTotal    = assetPools.reduce((s, a) => s + a.value, 0);
+      const homeTotal     = homes.reduce((s, h) => s + h.value, 0);
+      const remainingDebt = getRemainingDebtBalance(scenario.debts, age, startAge);
+      const netWorth      = assetTotal + savingsPool + homeTotal - remainingDebt;
+      path.push(Math.round(netWorth));
+
+      // Single market shock per year — applies to all assets (correlated market)
+      const shock = randNormal(0, volDecimal);
       const ev = getEventImpact(age, scenario.events);
-      if (age < scenario.retire_age) {
+
+      if (age < retireAge) {
         const yearsWorked  = Math.max(0, age - careerStartAge);
         const sal          = getSalary(job, yearsWorked);
         const afterTax     = calcAfterTaxSalary(sal, scenario.state_code);
         const debtPayments = getDebtPayments(scenario.debts, age, startAge);
         const available    = Math.max(0, afterTax - debtPayments);
-        const savings      = Math.min(afterTax * (scenario.save_pct / 100), available);
-        const futureAssets = (scenario.assets || [])
-          .filter(a => a.start_age && a.start_age > startAge && a.start_age === age)
-          .reduce((sum, a) => sum + (a.value || 0), 0);
-        const futureDebts  = (scenario.debts || [])
-          .filter(d => d.start_age && d.start_age > startAge && d.start_age === age)
-          .reduce((sum, d) => sum + (d.balance || 0), 0);
-        wealth = wealth * (1 + r) + savings + futureAssets - futureDebts - ev.oneTime - ev.annual;
+        const savings      = Math.min(afterTax * savePct, available);
+
+        // Each asset grows at its own rate ± market shock, plus contribution
+        assetPools.forEach(a => {
+          a.value = a.value * (1 + a.rate + shock) + a.contrib;
+        });
+
+        // Future assets entering this year
+        (scenario.assets || [])
+          .filter(a => a.start_age && a.start_age > startAge && a.start_age === age && !a.event_id)
+          .forEach(a => assetPools.push({
+            id: a.id, start_age: a.start_age,
+            rate:    (a.expected_return_rate || 7) / 100,
+            contrib: a.annual_contribution || 0,
+            value:   a.value || 0,
+          }));
+
+        savingsPool = savingsPool * (1 + returnRate + shock) + savings - ev.oneTime - ev.annual;
       } else {
-        if (retBal === null) { retBal = wealth; drawn = retBal * 0.04; }
-        wealth = wealth * (1 + r) - drawn;
-        if (wealth < 0) wealth = 0;
+        if (retBal === null) { retBal = netWorth; drawn = retBal * 0.04; }
+        assetPools.forEach(a => {
+          a.value = Math.max(0, a.value * (1 + a.rate + shock));
+        });
+        savingsPool = savingsPool * (1 + returnRate + shock) - drawn;
       }
+
+      homes.forEach(h => { h.value *= (1 + h.rate / 100); });
     });
+
     paths.push(path);
   }
 

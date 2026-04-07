@@ -10,10 +10,31 @@ const _openSections = { career: true, finances: false, events: false, settings: 
 
 // Time range for projection chart (null = All)
 let _projRange = null;
+// View mode: 'chart' or 'table'
+let _viewMode = 'chart';
+// Per-scenario table rows keyed by scenario id
+let _tableRows = {};
 
 function setProjRange(years) {
   _projRange = years;
   renderProjChart();
+}
+
+function toggleViewMode() {
+  _viewMode = _viewMode === 'chart' ? 'table' : 'chart';
+  const btn    = document.getElementById('view-toggle-btn');
+  const canvas = document.getElementById('projChart');
+  const table  = document.getElementById('proj-table');
+  if (_viewMode === 'table') {
+    if (canvas) canvas.style.display = 'none';
+    if (table)  table.style.display  = 'block';
+    if (btn)    btn.textContent = '📈 Chart';
+    renderProjTable();
+  } else {
+    if (canvas) canvas.style.display = 'block';
+    if (table)  table.style.display  = 'none';
+    if (btn)    btn.textContent = '⊞ Table';
+  }
 }
 
 function toggleSection(key) {
@@ -103,6 +124,9 @@ function renderProjChart() {
   const startAge = scenario.start_age || 25;
   const ages     = getAges(startAge);
   const results  = toRender.map(s => calculatePath(s));
+
+  // Store per-scenario rows for table view
+  toRender.forEach((s, i) => { _tableRows[s.id] = results[i].rows; });
   const xMin     = startAge;
   const xMax     = _projRange ? startAge + _projRange : undefined;
 
@@ -193,6 +217,56 @@ function renderProjChart() {
       </div>`;
     } else { beEl.innerHTML = ''; }
   } else { beEl.innerHTML = ''; }
+
+  // Sync table if in table mode
+  if (_viewMode === 'table') renderProjTable();
+}
+
+function renderProjTable() {
+  const el = document.getElementById('proj-table');
+  if (!el) return;
+  const scenario  = State.getScenario();
+  if (!scenario) return;
+  const scenarios = State.getScenarioList().filter(s => s.events !== undefined);
+  const toRender  = scenarios.length ? scenarios : [scenario];
+  const startAge  = scenario.start_age || 25;
+  const maxAge    = _projRange ? startAge + _projRange : Infinity;
+
+  el.innerHTML = toRender.map(s => {
+    const rows  = (_tableRows[s.id] || []).filter(r => r.age <= maxAge);
+    const color = s.color || '#00d4aa';
+    return `
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+          <span style="font-size:12px;font-weight:700;color:${color};">${s.name}</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="proj-table">
+            <thead>
+              <tr>
+                <th>Age</th>
+                <th>Income</th>
+                <th>Int. Income</th>
+                <th>Expenses</th>
+                <th>Int. Expense</th>
+                <th>Balance</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `<tr>
+                <td class="tbl-age">${r.age}</td>
+                <td class="tbl-pos">${fmtM(r.income)}</td>
+                <td class="tbl-pos">${fmtM(r.interestIncome)}</td>
+                <td class="tbl-neg">${r.expenses ? fmtM(r.expenses) : '—'}</td>
+                <td class="tbl-neg">${r.interestExpense ? fmtM(r.interestExpense) : '—'}</td>
+                <td class="tbl-bal" style="color:${r.balance >= 0 ? color : 'var(--coral)'};">${fmtM(r.balance)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ── Salary helper ──────────────────────────────────────────────────────────────

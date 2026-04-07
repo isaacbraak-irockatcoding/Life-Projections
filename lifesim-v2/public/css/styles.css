@@ -385,6 +385,27 @@ input[type=range] {
 .range-btn.active, .range-btn:hover { border-color: var(--teal); color: var(--teal); }
 
 /* ══════════════════════════════════════
+   PROJECTION TABLE
+══════════════════════════════════════ */
+#proj-table { margin-top: 4px; }
+.proj-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-num); }
+.proj-table th {
+  text-align: right; padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted2); font-size: 10px; font-weight: 700;
+  letter-spacing: .06em; text-transform: uppercase;
+  white-space: nowrap;
+}
+.proj-table th:first-child { text-align: left; }
+.proj-table td { text-align: right; padding: 5px 8px; border-bottom: 1px solid rgba(28,32,56,.5); white-space: nowrap; }
+.proj-table td:first-child { text-align: left; }
+.proj-table tr:hover td { background: rgba(255,255,255,.025); }
+.tbl-age { font-weight: 700; color: var(--muted2); font-size: 11px; }
+.tbl-pos { color: var(--teal); }
+.tbl-neg { color: var(--coral); }
+.tbl-bal { font-weight: 700; }
+
+/* ══════════════════════════════════════
    COLLAPSIBLE SECTIONS
 ══════════════════════════════════════ */
 .sec-hdr {

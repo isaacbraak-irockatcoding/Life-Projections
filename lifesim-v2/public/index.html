@@ -30,14 +30,18 @@
     <div class="card">
       <div class="chart-hdr">
         <h3 style="margin-bottom:0;">Wealth Projection</h3>
-        <div class="range-btns">
-          <button onclick="setProjRange(5)"    id="rb-5"   class="range-btn">5y</button>
-          <button onclick="setProjRange(10)"   id="rb-10"  class="range-btn">10y</button>
-          <button onclick="setProjRange(20)"   id="rb-20"  class="range-btn">20y</button>
-          <button onclick="setProjRange(null)" id="rb-all" class="range-btn active">All</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button id="view-toggle-btn" onclick="toggleViewMode()" class="range-btn">⊞ Table</button>
+          <div class="range-btns">
+            <button onclick="setProjRange(5)"    id="rb-5"   class="range-btn">5y</button>
+            <button onclick="setProjRange(10)"   id="rb-10"  class="range-btn">10y</button>
+            <button onclick="setProjRange(20)"   id="rb-20"  class="range-btn">20y</button>
+            <button onclick="setProjRange(null)" id="rb-all" class="range-btn active">All</button>
+          </div>
         </div>
       </div>
       <canvas id="projChart" height="240"></canvas>
+      <div id="proj-table" style="display:none;"></div>
       <div class="legend" id="proj-legend"></div>
     </div>
 
