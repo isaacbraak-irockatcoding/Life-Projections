@@ -175,9 +175,9 @@ onmessage = function({ data: { scenario, vol, simCount } }) {
       const ev = getEventImpact(age, scenario.events);
 
       if (age < retireAge) {
-        const yearsWorked  = Math.max(0, age - careerStartAge);
-        const sal          = getSalary(job, yearsWorked);
-        const afterTax     = calcAfterTaxSalary(sal, scenario.state_code);
+        const yearsWorked  = age - careerStartAge;
+        const sal          = yearsWorked >= 0 ? getSalary(job, yearsWorked) : 0;
+        const afterTax     = sal > 0 ? calcAfterTaxSalary(sal, scenario.state_code) : 0;
         const debtPayments = getDebtPayments(scenario.debts, age, startAge);
         const available    = Math.max(0, afterTax - debtPayments);
         const savings      = Math.min(afterTax * savePct, available);
@@ -197,7 +197,8 @@ onmessage = function({ data: { scenario, vol, simCount } }) {
             value:   a.value || 0,
           }));
 
-        savingsPool = savingsPool * (1 + returnRate + shock) + savings - ev.oneTime - ev.annual;
+        const debtShortfall = Math.max(0, debtPayments - afterTax);
+        savingsPool = savingsPool * (1 + returnRate + shock) + savings - ev.oneTime - ev.annual - debtShortfall;
       } else {
         if (retBal === null) { retBal = netWorth; drawn = retBal * 0.04; }
         assetPools.forEach(a => {

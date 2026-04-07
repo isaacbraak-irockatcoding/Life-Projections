@@ -104,12 +104,16 @@ function calcAfterTaxSalary(gross, stateCode) {
   return Math.max(0, gross - federal - state);
 }
 
-// Returns the annual interest paid on all active debts at a given age
+// Returns the annual interest accruing on all active debts at a given age
 function getDebtInterest(debts, age, scenarioStartAge) {
   return (debts || []).reduce((sum, d) => {
     const debtStart = d.start_age || scenarioStartAge;
     if (age < debtStart) return sum;
-    if (!d.monthly_payment || d.monthly_payment <= 0) return sum;
+    if (!(d.interest_rate > 0)) return sum;
+    // No monthly payment — interest accrues on full balance (not being paid down)
+    if (!d.monthly_payment || d.monthly_payment <= 0) {
+      return sum + (d.balance || 0) * (d.interest_rate / 100);
+    }
     const r = d.interest_rate / 100 / 12;
     const yearIndex = age - debtStart;
     let payoffMonths;
@@ -201,13 +205,19 @@ function calculatePath(scenario) {
     const interestIncome  = Math.round(assetInterest + poolInterest);
     const interestExpense = Math.round(getDebtInterest(scenario.debts, age, startAge));
 
+    // Row variables — hoisted so they're available after the if/else for the row push
+    let rowIncome = 0, rowExpenses = 0;
+
     if (age < scenario.retire_age) {
-      const yearsWorked  = Math.max(0, age - careerStartAge);
-      const salary       = getSalary(effectiveJob, yearsWorked);
-      const afterTax     = calcAfterTaxSalary(salary, scenario.state_code);
+      const yearsWorked  = age - careerStartAge;
+      const salary       = yearsWorked >= 0 ? getSalary(effectiveJob, yearsWorked) : 0;
+      const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code) : 0;
       const debtPayments = getDebtPayments(scenario.debts, age, startAge);
       const available    = Math.max(0, afterTax - debtPayments);
       const savings      = Math.min(afterTax * savePct, available);
+
+      rowIncome   = Math.round(afterTax);
+      rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual);
 
       // Compound each asset at its own rate + add its annual contribution
       assetPools.forEach(a => {
@@ -224,26 +234,30 @@ function calculatePath(scenario) {
           value:   a.value || 0,
         }));
 
-      // Compound savings pool at scenario rate + deposit this year's savings minus event costs
-      savingsPool = savingsPool * (1 + returnRate) + savings - ev.oneTime - ev.annual;
-
-      const income   = Math.round(afterTax);
-      const expenses = Math.round(debtPayments + ev.oneTime + ev.annual);
-      rows.push({ age, income, interestIncome, expenses, interestExpense, balance: path[path.length - 1] });
+      // When income can't fully cover debt payments, draw the shortfall from savings pool
+      const debtShortfall = Math.max(0, debtPayments - afterTax);
+      // Compound savings pool at scenario rate + deposit savings - events - any debt payment shortfall
+      savingsPool = savingsPool * (1 + returnRate) + savings - ev.oneTime - ev.annual - debtShortfall;
     } else {
       // Retirement: compound assets (no new contributions), withdraw from savings pool
       if (retireBal === null) {
         retireBal   = netWorth;
         annualDrawn = retireBal * 0.04;
       }
+      rowExpenses = Math.round(annualDrawn);
       assetPools.forEach(a => { a.value = a.value * (1 + a.rate); });
       savingsPool = savingsPool * (1 + returnRate) - annualDrawn;
-
-      rows.push({ age, income: 0, interestIncome, expenses: Math.round(annualDrawn), interestExpense: 0, balance: path[path.length - 1] });
     }
 
     // Appreciate homes at end of each year
     homes.forEach(h => { h.value *= (1 + h.rate / 100); });
+
+    // Closing balance (end-of-year) for table — computed after all updates
+    const closingAssets  = assetPools.reduce((s, a) => s + a.value, 0);
+    const closingHomes   = homes.reduce((s, h) => s + h.value, 0);
+    const closingDebt    = getRemainingDebtBalance(scenario.debts, age + 1, startAge);
+    const closingBalance = Math.round(closingAssets + savingsPool + closingHomes - closingDebt);
+    rows.push({ age, income: rowIncome, interestIncome, expenses: rowExpenses, interestExpense, balance: closingBalance });
   });
 
   return { path, annualDrawn, rows };

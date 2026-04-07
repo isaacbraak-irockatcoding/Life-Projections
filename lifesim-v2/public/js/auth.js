@@ -117,10 +117,11 @@ async function enterGuestMode() {
   try {
     const data = await api.post('/api/auth/guest', {});
     State.setUser(data.user, data.token);
-    await bootAfterAuth();
   } catch (err) {
     showAuthError('Could not start guest session. Please try again.');
+    return;
   }
+  await bootAfterAuth();
 }
 
 function handleLogout() {

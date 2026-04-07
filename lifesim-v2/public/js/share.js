@@ -13,7 +13,6 @@ function renderShareTab() {
     return;
   }
 
-  const { currentAssets, currentDebt } = collapseBalanceSheet(scenario);
   const result  = calculatePath(scenario);
   const finalWl = result.path[result.path.length - 1];
 
