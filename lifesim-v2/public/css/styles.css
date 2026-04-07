@@ -405,6 +405,28 @@ input[type=range] {
 .tbl-neg { color: var(--coral); }
 .tbl-bal { font-weight: 700; }
 
+/* ── Balance sheet table additions ── */
+.bs-expandable { cursor: pointer; user-select: none; transition: color .15s; }
+.bs-expandable:hover { color: var(--teal) !important; }
+.bs-expand-arrow { font-size: 9px; color: var(--muted2); margin-right: 3px; display: inline-block; }
+.bs-summary-row td { font-weight: 500; }
+.bs-detail-row td {
+  background: rgba(255,255,255,.012);
+  border-bottom: 1px solid rgba(28,32,56,.3);
+  font-size: 11px; padding: 3px 8px; color: var(--muted2);
+}
+.bs-detail-row td:first-child { color: var(--muted); padding-left: 16px; }
+.bs-detail-label { text-align: left; }
+.bs-col-clickable { cursor: pointer; user-select: none; }
+.bs-col-clickable:hover { color: var(--teal); }
+
+/* ── Cashflow summary table ── */
+#proj-cashflow { margin-top: 4px; }
+.cf-year-row td { font-weight: 700; border-top: 1px solid var(--border); padding-top: 8px; background: rgba(255,255,255,.018); }
+.cf-section-hdr td { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted2); padding: 3px 8px; cursor: pointer; user-select: none; border-bottom: none; }
+.cf-section-hdr:hover td { color: var(--teal); }
+.cf-reference-row td { font-size: 11px; color: var(--muted2); font-style: italic; border-bottom: none; padding: 2px 8px; }
+
 /* ══════════════════════════════════════
    COLLAPSIBLE SECTIONS
 ══════════════════════════════════════ */

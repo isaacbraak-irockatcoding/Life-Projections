@@ -36,7 +36,7 @@ function getDebtPayments(debts, age, scenarioStartAge) {
 function getRemainingDebtBalance(debts, age, scenarioStartAge) {
   return (debts || []).reduce((sum, d) => {
     const debtStart = d.start_age || scenarioStartAge;
-    if (age < debtStart) return sum; // debt hasn't started yet
+    if (age <= debtStart) return sum; // debt hasn't started yet
     if (!d.monthly_payment || d.monthly_payment <= 0) return sum + (d.balance || 0);
     const r = d.interest_rate / 100 / 12;
     const monthsElapsed = (age - debtStart) * 12;
@@ -55,6 +55,30 @@ function getRemainingDebtBalance(debts, age, scenarioStartAge) {
           - d.monthly_payment * ((Math.pow(1 + r, monthsElapsed) - 1) / r));
     return sum + remaining;
   }, 0);
+}
+
+function getRemainingDebtBreakdown(debts, age, scenarioStartAge) {
+  return (debts || []).map(d => {
+    const debtStart = d.start_age || scenarioStartAge;
+    if (age <= debtStart) return null;
+    if (!d.monthly_payment || d.monthly_payment <= 0) return { label: d.label, value: d.balance || 0 };
+    const r = d.interest_rate / 100 / 12;
+    const monthsElapsed = (age - debtStart) * 12;
+    let payoffMonths;
+    if (r === 0) {
+      payoffMonths = (d.balance || 0) / d.monthly_payment;
+    } else if (r * (d.balance || 0) >= d.monthly_payment) {
+      return { label: d.label, value: d.balance || 0 };
+    } else {
+      payoffMonths = -Math.log(1 - r * (d.balance || 0) / d.monthly_payment) / Math.log(1 + r);
+    }
+    if (monthsElapsed >= payoffMonths) return null;
+    const remaining = r === 0
+      ? Math.max(0, (d.balance || 0) - d.monthly_payment * monthsElapsed)
+      : Math.max(0, (d.balance || 0) * Math.pow(1 + r, monthsElapsed)
+          - d.monthly_payment * ((Math.pow(1 + r, monthsElapsed) - 1) / r));
+    return remaining > 0 ? { label: d.label, value: Math.round(remaining) } : null;
+  }).filter(Boolean);
 }
 
 // ── Tax calculations ───────────────────────────────────────────────────────────
@@ -137,6 +161,41 @@ function getDebtInterest(debts, age, scenarioStartAge) {
   }, 0);
 }
 
+// Returns per-debt annual interest breakdown at a given age
+function getDebtInterestBreakdown(debts, age, scenarioStartAge) {
+  const result = [];
+  (debts || []).forEach(d => {
+    const debtStart = d.start_age || scenarioStartAge;
+    if (age < debtStart) return;
+    if (!(d.interest_rate > 0) && !(d.monthly_payment > 0)) return;
+    const r = d.interest_rate / 100 / 12;
+    if (!d.monthly_payment || d.monthly_payment <= 0) {
+      const annualInterest = (d.balance || 0) * (d.interest_rate / 100);
+      result.push({ label: d.label, interest: Math.round(annualInterest), principal: 0, total: Math.round(annualInterest) });
+      return;
+    }
+    let payoffMonths;
+    if (r === 0) {
+      payoffMonths = d.balance / d.monthly_payment;
+    } else if (r * d.balance >= d.monthly_payment) {
+      result.push({ label: d.label, interest: Math.round(d.monthly_payment * 12), principal: 0, total: Math.round(d.monthly_payment * 12) });
+      return;
+    } else {
+      payoffMonths = -Math.log(1 - r * d.balance / d.monthly_payment) / Math.log(1 + r);
+    }
+    const monthsElapsed = (age - debtStart) * 12;
+    if (monthsElapsed >= payoffMonths) return;
+    const remaining = r === 0
+      ? d.balance - d.monthly_payment * monthsElapsed
+      : d.balance * Math.pow(1 + r, monthsElapsed) - d.monthly_payment * ((Math.pow(1 + r, monthsElapsed) - 1) / r);
+    const annualInterest  = Math.round(Math.max(0, remaining) * (d.interest_rate / 100));
+    const annualTotal     = Math.round(d.monthly_payment * 12);
+    const annualPrincipal = Math.max(0, annualTotal - annualInterest);
+    result.push({ label: d.label, interest: annualInterest, principal: annualPrincipal, total: annualTotal });
+  });
+  return result;
+}
+
 // Returns one-time cost and annual drag from events at a given age
 function getEventImpact(age, events) {
   let oneTime = 0, annual = 0;
@@ -145,6 +204,23 @@ function getEventImpact(age, events) {
     if (age >= ev.at_age && age < ev.at_age + (ev.duration_years || 1)) annual += (ev.annual_impact || 0);
   });
   return { oneTime, annual };
+}
+
+// Superset of getEventImpact — returns per-event detail arrays plus the same scalar totals
+function getEventImpactDetail(age, events) {
+  const oneTimeItems = [], annualItems = [];
+  let oneTime = 0, annual = 0;
+  (events || []).forEach(ev => {
+    if (ev.at_age === age && (ev.one_time_cost || 0) !== 0) {
+      oneTimeItems.push({ name: ev.name || ev.emoji || 'Event', amount: ev.one_time_cost });
+      oneTime += ev.one_time_cost;
+    }
+    if (age >= ev.at_age && age < ev.at_age + (ev.duration_years || 1) && (ev.annual_impact || 0) !== 0) {
+      annualItems.push({ name: ev.name || ev.emoji || 'Event', amount: ev.annual_impact });
+      annual += ev.annual_impact;
+    }
+  });
+  return { oneTime, annual, oneTimeItems, annualItems };
 }
 
 // ── Main projection ────────────────────────────────────────────────────────────
@@ -186,35 +262,40 @@ function calculatePath(scenario) {
     // Register house purchases at the start of this year
     (scenario.events || []).forEach(e => {
       if (e.event_type === 'house_purchase' && e.at_age === age && (e.home_value || 0) > 0) {
-        homes.push({ value: e.home_value, rate: e.home_appreciation_rate || 3 });
+        homes.push({ value: e.home_value, rate: e.home_appreciation_rate || 3, name: e.name || 'Home' });
       }
     });
 
-    // Net worth snapshot (before this year's growth)
+    // Net worth snapshot (before this year's growth) — used for retirement calculation
     const assetTotal    = assetPools.reduce((s, a) => s + a.value, 0);
     const homeTotal     = homes.reduce((s, h) => s + h.value, 0);
     const remainingDebt = getRemainingDebtBalance(scenario.debts, age, startAge);
     const netWorth      = assetTotal + savingsPool + homeTotal - remainingDebt;
-    path.push(Math.round(netWorth));
 
-    const ev = getEventImpact(age, scenario.events);
+    const ev = getEventImpactDetail(age, scenario.events);
 
     // Interest income: sum of each asset's return + positive savings pool return
-    const assetInterest  = assetPools.reduce((s, a) => s + a.value * a.rate, 0);
-    const poolInterest   = Math.max(0, savingsPool) * returnRate;
-    const interestIncome  = Math.round(assetInterest + poolInterest);
-    const interestExpense = Math.round(getDebtInterest(scenario.debts, age, startAge));
+    const assetInterest      = assetPools.reduce((s, a) => s + a.value * a.rate, 0);
+    const poolInterest       = Math.max(0, savingsPool) * returnRate;
+    const assetInterestIncome = Math.round(assetInterest);
+    const poolInterestIncome  = Math.round(poolInterest);
+    const interestIncome      = assetInterestIncome + poolInterestIncome;
+    const debtInterestBreakdown = getDebtInterestBreakdown(scenario.debts, age, startAge);
+    const interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
 
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;
+    // Cashflow fields — hoisted for access at rows.push time
+    let debtPayments = 0, savings = 0, debtShortfall = 0;
+    const isRetired = age >= scenario.retire_age;
 
-    if (age < scenario.retire_age) {
+    if (!isRetired) {
       const yearsWorked  = age - careerStartAge;
       const salary       = yearsWorked >= 0 ? getSalary(effectiveJob, yearsWorked) : 0;
       const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code) : 0;
-      const debtPayments = getDebtPayments(scenario.debts, age, startAge);
+      debtPayments = getDebtPayments(scenario.debts, age, startAge);
       const available    = Math.max(0, afterTax - debtPayments);
-      const savings      = Math.min(afterTax * savePct, available);
+      savings      = Math.min(afterTax * savePct, available);
 
       rowIncome   = Math.round(afterTax);
       rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual);
@@ -235,7 +316,7 @@ function calculatePath(scenario) {
         }));
 
       // When income can't fully cover debt payments, draw the shortfall from savings pool
-      const debtShortfall = Math.max(0, debtPayments - afterTax);
+      debtShortfall = Math.max(0, debtPayments - afterTax);
       // Compound savings pool at scenario rate + deposit savings - events - any debt payment shortfall
       savingsPool = savingsPool * (1 + returnRate) + savings - ev.oneTime - ev.annual - debtShortfall;
     } else {
@@ -257,7 +338,56 @@ function calculatePath(scenario) {
     const closingHomes   = homes.reduce((s, h) => s + h.value, 0);
     const closingDebt    = getRemainingDebtBalance(scenario.debts, age + 1, startAge);
     const closingBalance = Math.round(closingAssets + savingsPool + closingHomes - closingDebt);
-    rows.push({ age, income: rowIncome, interestIncome, expenses: rowExpenses, interestExpense, balance: closingBalance });
+    path.push(closingBalance);
+    const assetBreakdown = assetPools.map(a => ({
+      name: ((scenario.assets || []).find(x => x.id === a.id) || {}).label || 'Asset',
+      value: Math.round(a.value),
+    }));
+    const homeBreakdown = homes.map(h => ({ name: h.name, value: Math.round(h.value) }));
+    const liabilityBreakdown = getRemainingDebtBreakdown(scenario.debts, age + 1, startAge);
+
+    const cashValue   = savingsPool >= 0 ? Math.round(savingsPool) : 0;
+    const deficitValue = savingsPool < 0 ? Math.round(Math.abs(savingsPool)) : 0;
+    if (deficitValue > 0) liabilityBreakdown.unshift({ label: 'Cash Deficit', value: deficitValue });
+
+    const totalAssetContribs = isRetired ? 0 : assetPools.reduce((s, a) => s + a.contrib, 0);
+    const assetContribBreakdown = isRetired ? [] : assetPools
+      .map(a => ({ name: ((scenario.assets || []).find(x => x.id === a.id) || {}).label || 'Asset', contrib: a.contrib }))
+      .filter(a => a.contrib > 0);
+
+    // Living expenses = take-home pay minus everything accounted for (savings, debts, events)
+    const livingExpenses = isRetired ? 0 : Math.max(0,
+      rowIncome - Math.round(savings) - Math.round(debtPayments) - Math.round(ev.oneTime) - Math.round(ev.annual)
+    );
+
+    rows.push({
+      age,
+      income: rowIncome,
+      interestIncome,
+      expenses: rowExpenses,
+      interestExpense,
+      balance: closingBalance,
+      savingsPool: cashValue,
+      assetBreakdown,
+      homeBreakdown,
+      liabilityBreakdown,
+      totalAssets: Math.round(closingAssets + savingsPool + closingHomes),
+      totalLiabilities: Math.round(closingDebt),
+      // Cashflow fields
+      isRetired,
+      debtPayments:          Math.round(debtPayments),
+      savedToPool:           Math.round(savings),
+      debtInterestBreakdown,
+      debtPrincipalPayments: Math.round(Math.max(0, debtPayments - interestExpense)),
+      totalAssetContribs:    Math.round(totalAssetContribs),
+      assetContribBreakdown,
+      eventOneTimeItems:     ev.oneTimeItems,
+      eventAnnualItems:      ev.annualItems,
+      retirementWithdrawal:  isRetired ? Math.round(annualDrawn) : 0,
+      livingExpenses,
+      assetInterestIncome,
+      poolInterestIncome,
+    });
   });
 
   return { path, annualDrawn, rows };

@@ -14,32 +14,47 @@ let _projRange = null;
 let _viewMode = 'chart';
 // Per-scenario table rows keyed by scenario id
 let _tableRows = {};
+// Tracks which scenario+section is expanded in balance-sheet table
+const _tableExpanded = {};
+// Tracks which cashflow sections are expanded per scenario
+const _cashflowExpanded = {};
 
 function setProjRange(years) {
   _projRange = years;
   renderProjChart();
 }
 
-function toggleViewMode() {
-  _viewMode = _viewMode === 'chart' ? 'table' : 'chart';
-  const btn    = document.getElementById('view-toggle-btn');
-  const canvas = document.getElementById('projChart');
-  const table  = document.getElementById('proj-table');
-  if (_viewMode === 'table') {
-    if (canvas) canvas.style.display = 'none';
-    if (table)  table.style.display  = 'block';
-    if (btn)    btn.textContent = '📈 Chart';
-    renderProjTable();
-  } else {
-    if (canvas) canvas.style.display = 'block';
-    if (table)  table.style.display  = 'none';
-    if (btn)    btn.textContent = '⊞ Table';
-  }
+function setViewMode(mode) {
+  _viewMode = mode;
+  const canvas   = document.getElementById('projChart');
+  const table    = document.getElementById('proj-table');
+  const cashflow = document.getElementById('proj-cashflow');
+  if (canvas)   canvas.style.display   = mode === 'chart'    ? 'block' : 'none';
+  if (table)    table.style.display    = mode === 'table'    ? 'block' : 'none';
+  if (cashflow) cashflow.style.display = mode === 'cashflow' ? 'block' : 'none';
+  ['chart', 'table', 'cashflow'].forEach(m => {
+    const btn = document.getElementById(`view-btn-${m}`);
+    if (btn) btn.classList.toggle('active', m === mode);
+  });
+  if (mode === 'table')    renderProjTable();
+  if (mode === 'cashflow') renderCashflowSummary();
 }
 
 function toggleSection(key) {
   _openSections[key] = !_openSections[key];
   renderActiveScenarioEditor();
+}
+
+function toggleBalanceSection(scenarioId, section) {
+  const key = `${scenarioId}-${section}`;
+  _tableExpanded[key] = !_tableExpanded[key];
+  renderProjTable();
+}
+
+function toggleCashflowSection(scenarioId, section) {
+  const key = `${scenarioId}-cf-${section}`;
+  _cashflowExpanded[key] = !_cashflowExpanded[key];
+  renderCashflowSummary();
 }
 
 // Draws vertical dashed lines at life event ages
@@ -218,8 +233,9 @@ function renderProjChart() {
     } else { beEl.innerHTML = ''; }
   } else { beEl.innerHTML = ''; }
 
-  // Sync table if in table mode
-  if (_viewMode === 'table') renderProjTable();
+  // Sync active view
+  if (_viewMode === 'table')    renderProjTable();
+  if (_viewMode === 'cashflow') renderCashflowSummary();
 }
 
 function renderProjTable() {
@@ -233,8 +249,67 @@ function renderProjTable() {
   const maxAge    = _projRange ? startAge + _projRange : Infinity;
 
   el.innerHTML = toRender.map(s => {
-    const rows  = (_tableRows[s.id] || []).filter(r => r.age <= maxAge);
-    const color = s.color || '#00d4aa';
+    const rows       = (_tableRows[s.id] || []).filter(r => r.age <= maxAge);
+    const color      = s.color || '#00d4aa';
+    const assetsOpen = !!_tableExpanded[`${s.id}-assets`];
+    const liabOpen   = !!_tableExpanded[`${s.id}-liabilities`];
+
+    const tableRows = rows.map(r => {
+      let html = `<tr class="bs-summary-row">
+        <td class="tbl-age">${r.age}</td>
+        <td class="tbl-pos bs-expandable" onclick="toggleBalanceSection(${s.id},'assets')">
+          <span class="bs-expand-arrow">${assetsOpen ? '▾' : '▸'}</span>${fmtM(r.totalAssets || 0)}
+        </td>
+        <td class="tbl-neg bs-expandable" onclick="toggleBalanceSection(${s.id},'liabilities')">
+          <span class="bs-expand-arrow">${liabOpen ? '▾' : '▸'}</span>${r.totalLiabilities ? fmtM(r.totalLiabilities) : '—'}
+        </td>
+        <td class="tbl-bal" style="color:${r.balance >= 0 ? color : 'var(--coral)'};">${fmtM(r.balance)}</td>
+      </tr>`;
+
+      if (assetsOpen) {
+        if ((r.savingsPool || 0) > 0) {
+          html += `<tr class="bs-detail-row">
+            <td class="tbl-age">└</td>
+            <td class="bs-detail-label" colspan="2">Cash / Savings</td>
+            <td class="tbl-pos">${fmtM(r.savingsPool)}</td>
+          </tr>`;
+        }
+        (r.assetBreakdown || []).forEach(a => {
+          html += `<tr class="bs-detail-row">
+            <td class="tbl-age">└</td>
+            <td class="bs-detail-label" colspan="2">${a.name}</td>
+            <td class="tbl-pos">${fmtM(a.value)}</td>
+          </tr>`;
+        });
+        (r.homeBreakdown || []).forEach(h => {
+          html += `<tr class="bs-detail-row">
+            <td class="tbl-age">└</td>
+            <td class="bs-detail-label" colspan="2">${h.name}</td>
+            <td class="tbl-pos">${fmtM(h.value)}</td>
+          </tr>`;
+        });
+      }
+
+      if (liabOpen) {
+        if ((r.liabilityBreakdown || []).length) {
+          (r.liabilityBreakdown || []).forEach(d => {
+            html += `<tr class="bs-detail-row">
+              <td class="tbl-age">└</td>
+              <td class="bs-detail-label" colspan="2">${d.label}</td>
+              <td class="tbl-neg">${fmtM(d.value)}</td>
+            </tr>`;
+          });
+        } else {
+          html += `<tr class="bs-detail-row">
+            <td class="tbl-age">└</td>
+            <td class="tbl-age bs-detail-label" colspan="3">No active debts</td>
+          </tr>`;
+        }
+      }
+
+      return html;
+    }).join('');
+
     return `
       <div style="margin-bottom:20px;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
@@ -246,23 +321,163 @@ function renderProjTable() {
             <thead>
               <tr>
                 <th>Age</th>
-                <th>Income</th>
-                <th>Int. Income</th>
-                <th>Expenses</th>
-                <th>Int. Expense</th>
-                <th>Balance</th>
+                <th class="bs-col-clickable">Assets</th>
+                <th class="bs-col-clickable">Liabilities</th>
+                <th>Net Worth</th>
               </tr>
             </thead>
-            <tbody>
-              ${rows.map(r => `<tr>
-                <td class="tbl-age">${r.age}</td>
-                <td class="tbl-pos">${fmtM(r.income)}</td>
-                <td class="tbl-pos">${fmtM(r.interestIncome)}</td>
-                <td class="tbl-neg">${r.expenses ? fmtM(r.expenses) : '—'}</td>
-                <td class="tbl-neg">${r.interestExpense ? fmtM(r.interestExpense) : '—'}</td>
-                <td class="tbl-bal" style="color:${r.balance >= 0 ? color : 'var(--coral)'};">${fmtM(r.balance)}</td>
-              </tr>`).join('')}
-            </tbody>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderCashflowSummary() {
+  const el = document.getElementById('proj-cashflow');
+  if (!el) return;
+  const scenario  = State.getScenario();
+  if (!scenario) return;
+  const scenarios = State.getScenarioList().filter(s => s.events !== undefined);
+  const toRender  = scenarios.length ? scenarios : [scenario];
+  const startAge  = scenario.start_age || 25;
+  const maxAge    = _projRange ? startAge + _projRange : Infinity;
+
+  el.innerHTML = toRender.map(s => {
+    const rows          = (_tableRows[s.id] || []).filter(r => r.age <= maxAge);
+    const color         = s.color || '#00d4aa';
+    const cashInOpen    = !!_cashflowExpanded[`${s.id}-cf-cashin`];
+    const recurringOpen = !!_cashflowExpanded[`${s.id}-cf-recurring`];
+    const capitalOpen   = !!_cashflowExpanded[`${s.id}-cf-capital`];
+
+    const tableRows = rows.map(r => {
+      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : (r.income || 0);
+      const totalRecurring = (r.livingExpenses || 0)
+                           + (r.interestExpense || 0)
+                           + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0);
+      const totalCapital   = (r.eventOneTimeItems || []).reduce((s, i) => s + (i.amount || 0), 0)
+                           + (r.savedToPool || 0) + (r.totalAssetContribs || 0) + (r.debtPrincipalPayments || 0);
+      const netFlow        = totalCashIn - totalRecurring - totalCapital;
+      const netColor       = netFlow >= 0 ? color : 'var(--coral)';
+
+      let html = '';
+
+      // ── Year summary row ──
+      html += `<tr class="cf-year-row">
+        <td class="tbl-age">${r.age}</td>
+        <td class="tbl-pos">${fmtM(totalCashIn)}</td>
+        <td class="tbl-neg">${totalRecurring + totalCapital ? fmtM(totalRecurring + totalCapital) : '—'}</td>
+        <td class="tbl-bal" style="color:${netColor};">${fmtM(netFlow)}</td>
+      </tr>`;
+
+      // ── Cash In section ──
+      html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'cashin')">
+        <td class="tbl-age"><span class="bs-expand-arrow">${cashInOpen ? '▾' : '▸'}</span></td>
+        <td>Cash In — ${fmtM(totalCashIn)}</td>
+        <td></td><td></td>
+      </tr>`;
+      if (cashInOpen) {
+        if (r.isRetired) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Retirement Withdrawal</td><td class="tbl-pos">${fmtM(r.retirementWithdrawal || 0)}</td></tr>`;
+        } else {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Salary (after tax)</td><td class="tbl-pos">${fmtM(r.income || 0)}</td></tr>`;
+        }
+      }
+
+      // ── Recurring Expenses section ──
+      html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'recurring')">
+        <td class="tbl-age"><span class="bs-expand-arrow">${recurringOpen ? '▾' : '▸'}</span></td>
+        <td></td>
+        <td>Recurring Expenses — ${totalRecurring ? fmtM(totalRecurring) : '—'}</td>
+        <td></td>
+      </tr>`;
+      if (recurringOpen) {
+        if ((r.livingExpenses || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Lifestyle / Living Expenses</td><td class="tbl-neg">${fmtM(r.livingExpenses)}</td></tr>`;
+        }
+        (r.debtInterestBreakdown || []).forEach(d => {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${d.label} — Interest</td><td class="tbl-neg">${fmtM(d.interest)}</td></tr>`;
+        });
+        (r.eventAnnualItems || []).forEach(i => {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-neg">${fmtM(i.amount)}</td></tr>`;
+        });
+        if (!(r.livingExpenses > 0) && !((r.debtInterestBreakdown || []).length) && !((r.eventAnnualItems || []).length)) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
+        }
+      }
+
+      // ── Capital Outflows section ──
+      html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'capital')">
+        <td class="tbl-age"><span class="bs-expand-arrow">${capitalOpen ? '▾' : '▸'}</span></td>
+        <td></td>
+        <td>Capital Outflows — ${totalCapital ? fmtM(totalCapital) : '—'}</td>
+        <td></td>
+      </tr>`;
+      if (capitalOpen) {
+        (r.eventOneTimeItems || []).forEach(i => {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name} (one-time)</td><td class="tbl-neg">${fmtM(i.amount)}</td></tr>`;
+        });
+        if ((r.savedToPool || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Savings (to pool)</td><td class="tbl-neg">${fmtM(r.savedToPool)}</td></tr>`;
+        }
+        (r.assetContribBreakdown || []).forEach(a => {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${a.name} — Contribution</td><td class="tbl-neg">${fmtM(a.contrib)}</td></tr>`;
+        });
+        if ((r.debtPrincipalPayments || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Debt — Principal Paydown</td><td class="tbl-neg">${fmtM(r.debtPrincipalPayments)}</td></tr>`;
+        }
+        if (!((r.eventOneTimeItems || []).length) && !(r.savedToPool > 0) && !((r.assetContribBreakdown || []).length) && !(r.debtPrincipalPayments > 0)) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
+        }
+      }
+
+      // ── Compounding Returns (non-cash reference, split by source) ──
+      if ((r.interestIncome || 0) > 0) {
+        html += `<tr class="cf-reference-row">
+          <td class="tbl-age"></td>
+          <td colspan="2">Compounding Returns (not cash income)</td>
+          <td style="color:${color};">${fmtM(r.interestIncome)}</td>
+        </tr>`;
+        if ((r.poolInterestIncome || 0) > 0 && (r.assetInterestIncome || 0) > 0) {
+          html += `<tr class="cf-reference-row">
+            <td class="tbl-age"></td>
+            <td colspan="2" style="padding-left:20px;">└ Savings Pool</td>
+            <td style="color:${color};">${fmtM(r.poolInterestIncome)}</td>
+          </tr>
+          <tr class="cf-reference-row">
+            <td class="tbl-age"></td>
+            <td colspan="2" style="padding-left:20px;">└ Investment Assets</td>
+            <td style="color:${color};">${fmtM(r.assetInterestIncome)}</td>
+          </tr>`;
+        } else if ((r.poolInterestIncome || 0) > 0) {
+          html += `<tr class="cf-reference-row">
+            <td class="tbl-age"></td>
+            <td colspan="2" style="padding-left:20px;">└ Savings Pool</td>
+            <td style="color:${color};">${fmtM(r.poolInterestIncome)}</td>
+          </tr>`;
+        }
+      }
+
+      return html;
+    }).join('');
+
+    return `
+      <div style="margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+          <span style="font-size:12px;font-weight:700;color:${color};">${s.name}</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="proj-table">
+            <thead>
+              <tr>
+                <th>Age</th>
+                <th class="tbl-pos">Cash In</th>
+                <th class="tbl-neg">Cash Out</th>
+                <th>Net Flow</th>
+              </tr>
+            </thead>
+            <tbody>${tableRows}</tbody>
           </table>
         </div>
       </div>`;
