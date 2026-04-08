@@ -351,12 +351,12 @@ function renderCashflowSummary() {
     const capitalOpen   = !!_cashflowExpanded[`${s.id}-cf-capital`];
 
     const tableRows = rows.map(r => {
-      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : (r.income || 0);
-      const totalRecurring = (r.livingExpenses || 0)
-                           + (r.interestExpense || 0)
-                           + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0);
+      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : ((r.income || 0) + (r.spouseIncome || 0));
+      const totalRecurring = (r.interestExpense || 0)
+                           + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0)
+                           + (r.debtPrincipalPayments || 0);
       const totalCapital   = (r.eventOneTimeItems || []).reduce((s, i) => s + (i.amount || 0), 0)
-                           + (r.savedToPool || 0) + (r.totalAssetContribs || 0) + (r.debtPrincipalPayments || 0);
+                           + (r.totalAssetContribs || 0);
       const netFlow        = totalCashIn - totalRecurring - totalCapital;
       const netColor       = netFlow >= 0 ? color : 'var(--coral)';
 
@@ -380,53 +380,52 @@ function renderCashflowSummary() {
         if (r.isRetired) {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Retirement Withdrawal</td><td class="tbl-pos">${fmtM(r.retirementWithdrawal || 0)}</td></tr>`;
         } else {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Salary (after tax)</td><td class="tbl-pos">${fmtM(r.income || 0)}</td></tr>`;
+          if ((r.income || 0) > 0) {
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Salary (after tax)</td><td class="tbl-pos">${fmtM(r.income || 0)}</td></tr>`;
+          }
+          (r.spouseIncomeItems || []).forEach(i => {
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-pos">${fmtM(i.amount)}</td></tr>`;
+          });
         }
       }
 
-      // ── Recurring Expenses section ──
+      // ── Recurring Cash Out section ──
       html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'recurring')">
         <td class="tbl-age"><span class="bs-expand-arrow">${recurringOpen ? '▾' : '▸'}</span></td>
         <td></td>
-        <td>Recurring Expenses — ${totalRecurring ? fmtM(totalRecurring) : '—'}</td>
+        <td>Cash Out — ${totalRecurring ? fmtM(totalRecurring) : '—'}</td>
         <td></td>
       </tr>`;
       if (recurringOpen) {
-        if ((r.livingExpenses || 0) > 0) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Lifestyle / Living Expenses</td><td class="tbl-neg">${fmtM(r.livingExpenses)}</td></tr>`;
-        }
         (r.debtInterestBreakdown || []).forEach(d => {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${d.label} — Interest</td><td class="tbl-neg">${fmtM(d.interest)}</td></tr>`;
         });
+        if ((r.debtPrincipalPayments || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Debt — Principal Paydown</td><td class="tbl-neg">${fmtM(r.debtPrincipalPayments)}</td></tr>`;
+        }
         (r.eventAnnualItems || []).forEach(i => {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-neg">${fmtM(i.amount)}</td></tr>`;
         });
-        if (!(r.livingExpenses > 0) && !((r.debtInterestBreakdown || []).length) && !((r.eventAnnualItems || []).length)) {
+        if (!((r.debtInterestBreakdown || []).length) && !(r.debtPrincipalPayments > 0) && !((r.eventAnnualItems || []).length)) {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
         }
       }
 
-      // ── Capital Outflows section ──
+      // ── Capital Deployments section ──
       html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'capital')">
         <td class="tbl-age"><span class="bs-expand-arrow">${capitalOpen ? '▾' : '▸'}</span></td>
         <td></td>
-        <td>Capital Outflows — ${totalCapital ? fmtM(totalCapital) : '—'}</td>
+        <td>Capital Deployments — ${totalCapital ? fmtM(totalCapital) : '—'}</td>
         <td></td>
       </tr>`;
       if (capitalOpen) {
         (r.eventOneTimeItems || []).forEach(i => {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name} (one-time)</td><td class="tbl-neg">${fmtM(i.amount)}</td></tr>`;
         });
-        if ((r.savedToPool || 0) > 0) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Savings (to pool)</td><td class="tbl-neg">${fmtM(r.savedToPool)}</td></tr>`;
-        }
         (r.assetContribBreakdown || []).forEach(a => {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${a.name} — Contribution</td><td class="tbl-neg">${fmtM(a.contrib)}</td></tr>`;
         });
-        if ((r.debtPrincipalPayments || 0) > 0) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Debt — Principal Paydown</td><td class="tbl-neg">${fmtM(r.debtPrincipalPayments)}</td></tr>`;
-        }
-        if (!((r.eventOneTimeItems || []).length) && !(r.savedToPool > 0) && !((r.assetContribBreakdown || []).length) && !(r.debtPrincipalPayments > 0)) {
+        if (!((r.eventOneTimeItems || []).length) && !((r.assetContribBreakdown || []).length)) {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
         }
       }
@@ -473,7 +472,7 @@ function renderCashflowSummary() {
               <tr>
                 <th>Age</th>
                 <th class="tbl-pos">Cash In</th>
-                <th class="tbl-neg">Cash Out</th>
+                <th class="tbl-neg">Cash Out + Capital</th>
                 <th>Net Flow</th>
               </tr>
             </thead>
@@ -508,11 +507,6 @@ function renderActiveScenarioEditor() {
   const effS50  = s.custom_s50 != null ? s.custom_s50 : job.s50;
 
   const takeHomeS0      = calcAfterTaxSalary(effS0, s.state_code);
-  const totalDebtPmt    = (s.debts || []).reduce((sum, d) => sum + (d.monthly_payment || 0) * 12, 0);
-  const availableToSave = Math.max(0, takeHomeS0 - totalDebtPmt);
-  const maxSavePct      = takeHomeS0 > 0 ? Math.floor(availableToSave / takeHomeS0 * 100) : 100;
-  const effectiveSavePct = Math.min(s.save_pct, maxSavePct);
-  const isCapped         = s.save_pct > maxSavePct && totalDebtPmt > 0;
 
   const financeCount = (s.assets || []).length + (s.debts || []).length;
   const eventCount   = (s.events || []).length;
@@ -613,15 +607,6 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
         ${!isCustom ? `<p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Estimated salary — adjust if needed</p>` : ''}
-        <div class="field">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <label class="micro">Savings Rate</label>
-            <span class="micro num" id="sl-sp" style="color:${isCapped ? 'var(--coral)' : 'var(--text)'}">${effectiveSavePct}%${isCapped ? ` (capped)` : ''}</span>
-          </div>
-          <input type="range" min="0" max="70" value="${s.save_pct}"
-            oninput="updSlider('save_pct',this.value,'sp','%')"/>
-          ${isCapped ? `<p class="micro" style="color:var(--coral);margin-top:4px;text-transform:none;letter-spacing:0;font-size:11px;">Debt payments leave ~${maxSavePct}% max saveable at your starting salary</p>` : ''}
-        </div>
       </div>
 
       <!-- ── Finances ── -->
@@ -725,10 +710,6 @@ function renderActiveScenarioEditor() {
             <label class="micro" style="display:block;margin-bottom:5px;">At Age</label>
             <input type="number" id="ev-age" placeholder="30" min="18" max="90"/>
           </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Duration (yrs)</label>
-            <input type="number" id="ev-years" value="1" min="1" max="50"/>
-          </div>
         </div>
         <div class="field-row">
           <div class="field">
@@ -776,6 +757,29 @@ function renderActiveScenarioEditor() {
           </div>
           <p id="ev-mortgage-preview" style="font-size:11px;color:var(--accent);margin-bottom:10px;"></p>
         </div>
+        <div id="ev-spouse-fields" style="display:none;">
+          <p class="micro" style="color:var(--muted2);margin-bottom:8px;text-transform:none;letter-spacing:0;font-size:11px;">Spouse's career — income added to Cash In each year of the marriage</p>
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Spouse Career</label>
+            <select id="ev-spouse-job" onchange="updateSpouseSalaryDefaults()">
+              ${JOBS.map(j => `<option value="${j.id}">${j.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Start Salary ($)</label>
+              <input type="number" id="ev-spouse-s0" placeholder="60000"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Peak Salary ($)</label>
+              <input type="number" id="ev-spouse-s50" placeholder="100000"/>
+            </div>
+          </div>
+          <div class="field" style="max-width:50%;">
+            <label class="micro" style="display:block;margin-bottom:5px;">Spouse Career Start Age</label>
+            <input type="number" id="ev-spouse-career-start" placeholder="22"/>
+          </div>
+        </div>
         <p id="ev-cost-hint" style="font-size:11px;color:var(--muted2);margin-bottom:10px;">
           Positive = expense. For inheritance or income events, enter as positive — the app flips the sign.
         </p>
@@ -786,14 +790,6 @@ function renderActiveScenarioEditor() {
       <!-- ── Projection Settings ── -->
       ${secHdr('settings', 'Projection Settings')}
       <div class="sec-body" style="display:${_openSections.settings ? '' : 'none'};">
-        <div class="field">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <label class="micro">Avg. Return Rate</label>
-            <span class="micro num" id="sl-rr" style="color:var(--text)">${s.return_rate}%</span>
-          </div>
-          <input type="range" min="1" max="14" step="0.5" value="${s.return_rate}"
-            oninput="updSlider('return_rate',this.value,'rr','%')"/>
-        </div>
         <div class="field">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <label class="micro">Target Retirement Age</label>

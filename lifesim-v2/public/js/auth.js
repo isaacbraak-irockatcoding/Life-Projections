@@ -9,8 +9,8 @@ function renderAuthTab() {
   screen.innerHTML = `
     <div class="container">
       <div style="text-align:center;padding:40px 0 24px;">
-        <div style="font-size:48px;margin-bottom:10px;">📈</div>
-        <h1 style="margin-bottom:6px;">LifeSim</h1>
+        <img src="/images/logo.jpeg" alt="LifeSim Finance"
+          style="width:220px;max-width:80%;object-fit:contain;margin-bottom:12px;border-radius:12px;"/>
         <p style="color:var(--muted2);font-size:13px;">Model your financial future</p>
       </div>
 

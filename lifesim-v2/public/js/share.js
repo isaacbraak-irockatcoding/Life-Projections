@@ -247,7 +247,6 @@ function generateRecap(scenario) {
   const debts   = scenario.debts  || [];
   const events  = scenario.events || [];
   const totalDebt = debts.reduce((s, d) => s + (d.balance || 0), 0);
-  const savePct   = scenario.save_pct || 0;
   const retireAge = scenario.retire_age;
 
   const lines = [];
@@ -267,30 +266,7 @@ function generateRecap(scenario) {
   };
   lines.push(careerLines[scenario.job_id] || `You chose ${jobName}. Interesting career choice. We support it.`);
 
-  // ── 2. Salary & savings line ──
-  if (savePct <= 5) {
-    lines.push(v([
-      `You're saving ${savePct}% of your salary. That's… a number. A very small number. But hey, you're technically saving.`,
-      `With a ${savePct}% savings rate, you're basically telling compound interest to take a seat. Bold strategy.`,
-    ]));
-  } else if (savePct <= 15) {
-    lines.push(v([
-      `A ${savePct}% savings rate — not bad. You're saving something, which puts you ahead of a concerning portion of the population.`,
-      `You're saving ${savePct}% of your income. Respectable. The latte isn't going to sacrifice itself, but this is still solid.`,
-    ]));
-  } else if (savePct <= 30) {
-    lines.push(v([
-      `${savePct}% savings rate? Now we're talking. Future you is already planning a very smug retirement speech.`,
-      `You're putting away ${savePct}% of your paycheck. Genuinely impressive. You clearly own a budget spreadsheet you actually use.`,
-    ]));
-  } else {
-    lines.push(v([
-      `${savePct}% savings rate. Do you eat? Sleep? Exist outside of a Roth IRA? Respect, but also: are you okay?`,
-      `Saving ${savePct}% of your income is an extreme sport. Future you is going to be insufferably wealthy.`,
-    ]));
-  }
-
-  // ── 3. Debt / events line ──
+  // ── 2. Debt / events line ──
   const mortgage = debts.find(d => d.type === 'mortgage');
   const studentLoan = debts.find(d => d.type === 'student_loan');
   const carLoan  = debts.find(d => d.type === 'auto');

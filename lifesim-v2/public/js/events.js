@@ -48,14 +48,17 @@ function renderEventTypeSelector() {
 function selectEventType(typeId) {
   _selectedEventType = typeId;
   renderEventTypeSelector();
-  const isHouse = typeId === 'house_purchase';
+  const isHouse    = typeId === 'house_purchase';
+  const isMarriage = typeId === 'marriage';
   const houseFields  = document.getElementById('ev-house-fields');
+  const spouseFields = document.getElementById('ev-spouse-fields');
   const annualField  = document.getElementById('ev-annual-field');
   const yearsField   = document.getElementById('ev-years-field');
   const costHint     = document.getElementById('ev-cost-hint');
   const costLabel    = document.getElementById('ev-cost-label');
-  if (houseFields)  houseFields.style.display  = isHouse ? '' : 'none';
-  if (annualField)  annualField.style.display   = isHouse ? 'none' : '';
+  if (houseFields)  houseFields.style.display  = isHouse    ? '' : 'none';
+  if (spouseFields) spouseFields.style.display = isMarriage ? '' : 'none';
+  if (annualField)  annualField.style.display   = (isHouse || isMarriage) ? 'none' : '';
   if (yearsField)   yearsField.style.display    = isHouse ? 'none' : '';
   if (costHint)     costHint.style.display      = isHouse ? 'none' : '';
   if (costLabel)    costLabel.textContent       = isHouse ? 'Down Payment ($)' : 'One-time Cost ($)';
@@ -73,17 +76,24 @@ function applyEventTypeDefaults(typeId) {
   if (yearsEl  && !yearsEl.value)  yearsEl.value  = t.defaultYears;
   if (emojiEl  && !emojiEl.value)  emojiEl.value  = t.emoji;
 
-  const isHouse = typeId === 'house_purchase';
+  const isHouse    = typeId === 'house_purchase';
+  const isMarriage = typeId === 'marriage';
   const houseFields  = document.getElementById('ev-house-fields');
+  const spouseFields = document.getElementById('ev-spouse-fields');
   const annualField  = document.getElementById('ev-annual-field');
   const yearsField   = document.getElementById('ev-years-field');
   const costHint     = document.getElementById('ev-cost-hint');
   const costLabel    = document.getElementById('ev-cost-label');
-  if (houseFields)  houseFields.style.display  = isHouse ? '' : 'none';
-  if (annualField)  annualField.style.display   = isHouse ? 'none' : '';
+  if (houseFields)  houseFields.style.display  = isHouse    ? '' : 'none';
+  if (spouseFields) spouseFields.style.display = isMarriage ? '' : 'none';
+  if (annualField)  annualField.style.display   = (isHouse || isMarriage) ? 'none' : '';
   if (yearsField)   yearsField.style.display    = isHouse ? 'none' : '';
   if (costHint)     costHint.style.display      = isHouse ? 'none' : '';
   if (costLabel)    costLabel.textContent       = isHouse ? 'Down Payment ($)' : 'One-time Cost ($)';
+
+  if (isMarriage) {
+    updateSpouseSalaryDefaults();
+  }
 
   if (isHouse) {
     const homeValEl  = document.getElementById('ev-home-value');
@@ -98,6 +108,17 @@ function applyEventTypeDefaults(typeId) {
     if (costPctEl  && !costPctEl.value)  costPctEl.value  = 3;
     updateMortgagePreview();
   }
+}
+
+function updateSpouseSalaryDefaults() {
+  const jobId = document.getElementById('ev-spouse-job')?.value;
+  if (!jobId) return;
+  const job = JOBS.find(j => j.id === jobId);
+  if (!job) return;
+  const s0El  = document.getElementById('ev-spouse-s0');
+  const s50El = document.getElementById('ev-spouse-s50');
+  if (s0El  && !s0El.value)  s0El.value  = job.s0;
+  if (s50El && !s50El.value) s50El.value = job.s50;
 }
 
 async function addEvent() {
@@ -119,10 +140,22 @@ async function addEvent() {
   if (!name)            { showToast('Please enter an event name', true); return; }
   if (!age || age < 18) { showToast('Please enter a valid age (18+)', true); return; }
 
-  const isHouse = _selectedEventType === 'house_purchase';
+  const isHouse    = _selectedEventType === 'house_purchase';
+  const isMarriage = _selectedEventType === 'marriage';
+
+  // Read spouse fields for marriage events
+  const spouseJobId         = isMarriage ? (document.getElementById('ev-spouse-job')?.value || null) : null;
+  const spouseS0Raw         = isMarriage ? parseFloat(document.getElementById('ev-spouse-s0')?.value) : NaN;
+  const spouseS50Raw        = isMarriage ? parseFloat(document.getElementById('ev-spouse-s50')?.value) : NaN;
+  const spouseCareerStart   = isMarriage ? (parseInt(document.getElementById('ev-spouse-career-start')?.value) || null) : null;
+  const spouseS0  = isNaN(spouseS0Raw)  ? null : spouseS0Raw;
+  const spouseS50 = isNaN(spouseS50Raw) ? null : spouseS50Raw;
+  const spouseS35 = (spouseS0 != null && spouseS50 != null)
+    ? Math.round(spouseS0 + (spouseS50 - spouseS0) * 0.65) : null;
+
   // Inheritance is income (+), others are costs (−)
   const oneCost = _selectedEventType === 'inheritance' ? -Math.abs(cost) : cost;
-  const annCost = isHouse ? 0 : (_selectedEventType === 'inheritance' ? -Math.abs(annual) : annual);
+  const annCost = (isHouse || isMarriage) ? 0 : (_selectedEventType === 'inheritance' ? -Math.abs(annual) : annual);
   // For house: duration = mortgage term; annual costs auto-calculated server-side
   const duration = isHouse ? mortgageYears : years;
 
@@ -139,6 +172,11 @@ async function addEvent() {
       mortgage_rate:          isHouse ? mortgageRate   : 7,
       mortgage_years:         isHouse ? mortgageYears  : 30,
       annual_cost_pct:        isHouse ? annualCostPct  : 3,
+      spouse_job_id:          spouseJobId,
+      spouse_s0:              spouseS0,
+      spouse_s35:             spouseS35,
+      spouse_s50:             spouseS50,
+      spouse_career_start_age: spouseCareerStart,
     });
 
     State.addEvent(ev);
@@ -156,7 +194,8 @@ async function addEvent() {
 
     // Clear form
     ['ev-name','ev-emoji','ev-age','ev-cost','ev-annual',
-     'ev-home-value','ev-home-appreciation','ev-mortgage-rate','ev-mortgage-years','ev-annual-cost-pct'].forEach(
+     'ev-home-value','ev-home-appreciation','ev-mortgage-rate','ev-mortgage-years','ev-annual-cost-pct',
+     'ev-spouse-s0','ev-spouse-s50','ev-spouse-career-start'].forEach(
       id => { const el = document.getElementById(id); if (el) el.value = ''; }
     );
     const yearsEl = document.getElementById('ev-years');
@@ -213,6 +252,12 @@ function renderEventList() {
         const costPct = ev.annual_cost_pct ?? 3;
         parts.push(`${fmtM(Math.round(ev.home_value * costPct / 100))}/yr costs`);
       }
+    } else if (ev.event_type === 'marriage' && ev.spouse_job_id) {
+      if (ev.one_time_cost)  parts.push(`${fmtM(Math.abs(ev.one_time_cost))} wedding cost`);
+      const spouseJobName = (JOBS.find(j => j.id === ev.spouse_job_id) || {}).name || ev.spouse_job_id;
+      const s0  = ev.spouse_s0  != null ? fmtM(ev.spouse_s0)  : '';
+      const s50 = ev.spouse_s50 != null ? fmtM(ev.spouse_s50) : '';
+      parts.push(`Spouse: ${spouseJobName}${s0 ? ` · ${s0} → ${s50}` : ''} · ${ev.duration_years}yr`);
     } else {
       if (ev.one_time_cost)  parts.length = 0, parts.push(`${fmtM(Math.abs(ev.one_time_cost))} ${ev.one_time_cost < 0 ? 'income' : 'cost'}`);
       if (ev.annual_impact)  parts.push(`${fmtM(Math.abs(ev.annual_impact))}/yr × ${ev.duration_years}yr`);

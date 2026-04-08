@@ -132,8 +132,6 @@ onmessage = function({ data: { scenario, vol, simCount } }) {
   const startAge       = scenario.start_age || 25;
   const careerStartAge = scenario.career_start_age ?? 22;
   const retireAge      = scenario.retire_age || 65;
-  const returnRate     = scenario.return_rate / 100;
-  const savePct        = scenario.save_pct / 100;
   const ages = Array.from({ length: 46 }, (_, i) => startAge + i);
 
   // Snapshot of initial asset pool definitions (deep-copied per simulation)
@@ -179,8 +177,20 @@ onmessage = function({ data: { scenario, vol, simCount } }) {
         const sal          = yearsWorked >= 0 ? getSalary(job, yearsWorked) : 0;
         const afterTax     = sal > 0 ? calcAfterTaxSalary(sal, scenario.state_code) : 0;
         const debtPayments = getDebtPayments(scenario.debts, age, startAge);
-        const available    = Math.max(0, afterTax - debtPayments);
-        const savings      = Math.min(afterTax * savePct, available);
+
+        // Spouse income from marriage events
+        let spouseIncome = 0;
+        (scenario.events || []).forEach(me => {
+          if (me.event_type === 'marriage' && me.spouse_job_id &&
+              age >= me.at_age && age < me.at_age + (me.duration_years || 1)) {
+            const spouseBase = JOBS.find(j => j.id === me.spouse_job_id) || JOBS[0];
+            const spouseJob  = me.spouse_s0 != null
+              ? { ...spouseBase, s0: me.spouse_s0, s35: me.spouse_s35 || spouseBase.s35, s50: me.spouse_s50 || spouseBase.s50 }
+              : spouseBase;
+            const yrs = age - (me.spouse_career_start_age ?? 22);
+            if (yrs >= 0) spouseIncome += Math.round(calcAfterTaxSalary(getSalary(spouseJob, yrs), scenario.state_code));
+          }
+        });
 
         // Each asset grows at its own rate ± market shock, plus contribution
         assetPools.forEach(a => {
@@ -197,14 +207,15 @@ onmessage = function({ data: { scenario, vol, simCount } }) {
             value:   a.value || 0,
           }));
 
-        const debtShortfall = Math.max(0, debtPayments - afterTax);
-        savingsPool = savingsPool * (1 + returnRate + shock) + savings - ev.oneTime - ev.annual - debtShortfall;
+        // All leftover cash accumulates at 0%
+        const totalContribs = assetPools.reduce((s, a) => s + a.contrib, 0);
+        savingsPool = savingsPool + (afterTax + spouseIncome - debtPayments - ev.oneTime - ev.annual - totalContribs);
       } else {
         if (retBal === null) { retBal = netWorth; drawn = retBal * 0.04; }
         assetPools.forEach(a => {
           a.value = Math.max(0, a.value * (1 + a.rate + shock));
         });
-        savingsPool = savingsPool * (1 + returnRate + shock) - drawn;
+        savingsPool = savingsPool - drawn;
       }
 
       homes.forEach(h => { h.value *= (1 + h.rate / 100); });

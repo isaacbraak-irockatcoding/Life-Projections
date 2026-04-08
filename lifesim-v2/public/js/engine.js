@@ -207,26 +207,43 @@ function getEventImpact(age, events) {
 }
 
 // Superset of getEventImpact — returns per-event detail arrays plus the same scalar totals
+// Also computes spouse income for marriage events dynamically via getSalary()
 function getEventImpactDetail(age, events) {
-  const oneTimeItems = [], annualItems = [];
-  let oneTime = 0, annual = 0;
+  const oneTimeItems = [], annualItems = [], spouseIncomeItems = [];
+  let oneTime = 0, annual = 0, spouseIncome = 0;
   (events || []).forEach(ev => {
     if (ev.at_age === age && (ev.one_time_cost || 0) !== 0) {
       oneTimeItems.push({ name: ev.name || ev.emoji || 'Event', amount: ev.one_time_cost });
       oneTime += ev.one_time_cost;
     }
-    if (age >= ev.at_age && age < ev.at_age + (ev.duration_years || 1) && (ev.annual_impact || 0) !== 0) {
-      annualItems.push({ name: ev.name || ev.emoji || 'Event', amount: ev.annual_impact });
-      annual += ev.annual_impact;
+    if (age >= ev.at_age && age < ev.at_age + (ev.duration_years || 1)) {
+      if ((ev.annual_impact || 0) !== 0) {
+        annualItems.push({ name: ev.name || ev.emoji || 'Event', amount: ev.annual_impact });
+        annual += ev.annual_impact;
+      }
+      // Spouse income for marriage events — computed dynamically from career curve (after tax)
+      if (ev.event_type === 'marriage' && ev.spouse_job_id) {
+        const spouseJobBase = JOBS.find(j => j.id === ev.spouse_job_id) || JOBS[0];
+        const spouseJob = ev.spouse_s0 != null
+          ? { ...spouseJobBase, s0: ev.spouse_s0, s35: ev.spouse_s35 || spouseJobBase.s35, s50: ev.spouse_s50 || spouseJobBase.s50 }
+          : spouseJobBase;
+        const spouseYrsWorked = age - (ev.spouse_career_start_age ?? 22);
+        if (spouseYrsWorked >= 0) {
+          const grossSalary = getSalary(spouseJob, spouseYrsWorked);
+          const amount = Math.round(calcAfterTaxSalary(grossSalary, scenario.state_code));
+          spouseIncomeItems.push({ name: `${ev.name || 'Spouse'} — Income`, amount });
+          spouseIncome += amount;
+        }
+      }
     }
   });
-  return { oneTime, annual, oneTimeItems, annualItems };
+  return { oneTime, annual, oneTimeItems, annualItems, spouseIncome, spouseIncomeItems };
 }
 
 // ── Main projection ────────────────────────────────────────────────────────────
 // Each asset compounds at its own expected_return_rate with its annual_contribution.
-// Annual salary savings accumulate in a separate savings pool at the scenario return_rate.
-// Net worth = sum(asset values) + savingsPool + homeValues - remainingDebtBalances
+// Leftover cash (income − debt payments − events − asset contribs) accumulates in a
+// cash pool at 0% return. Net worth = sum(asset values) + cashPool + homeValues − remainingDebt
 function calculatePath(scenario) {
   const job = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
   const effectiveJob = scenario.custom_s0
@@ -235,8 +252,6 @@ function calculatePath(scenario) {
 
   const startAge       = scenario.start_age || 25;
   const careerStartAge = scenario.career_start_age ?? 22;
-  const returnRate     = scenario.return_rate / 100;
-  const savePct        = scenario.save_pct / 100;
 
   // Individual asset pools — each grows at its own rate with its own annual contribution
   const assetPools = (scenario.assets || [])
@@ -248,8 +263,8 @@ function calculatePath(scenario) {
       value:   a.value || 0,
     }));
 
-  // Savings pool: salary savings accumulate here, compounds at scenario return_rate
-  // Starts at 0; debts are tracked as separate liabilities via getRemainingDebtBalance
+  // Cash pool: leftover income after all outflows accumulates here at 0% return
+  // Debts are tracked as separate liabilities via getRemainingDebtBalance
   let savingsPool = 0;
 
   const workAges = Array.from({ length: 46 }, (_, i) => startAge + i);
@@ -274,19 +289,17 @@ function calculatePath(scenario) {
 
     const ev = getEventImpactDetail(age, scenario.events);
 
-    // Interest income: sum of each asset's return + positive savings pool return
+    // Interest income: sum of each asset's return (cash pool earns 0%)
     const assetInterest      = assetPools.reduce((s, a) => s + a.value * a.rate, 0);
-    const poolInterest       = Math.max(0, savingsPool) * returnRate;
     const assetInterestIncome = Math.round(assetInterest);
-    const poolInterestIncome  = Math.round(poolInterest);
-    const interestIncome      = assetInterestIncome + poolInterestIncome;
+    const poolInterestIncome  = 0;
+    const interestIncome      = assetInterestIncome;
     const debtInterestBreakdown = getDebtInterestBreakdown(scenario.debts, age, startAge);
     const interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
 
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;
-    // Cashflow fields — hoisted for access at rows.push time
-    let debtPayments = 0, savings = 0, debtShortfall = 0;
+    let debtPayments = 0;
     const isRetired = age >= scenario.retire_age;
 
     if (!isRetired) {
@@ -294,10 +307,8 @@ function calculatePath(scenario) {
       const salary       = yearsWorked >= 0 ? getSalary(effectiveJob, yearsWorked) : 0;
       const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code) : 0;
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
-      const available    = Math.max(0, afterTax - debtPayments);
-      savings      = Math.min(afterTax * savePct, available);
 
-      rowIncome   = Math.round(afterTax);
+      rowIncome   = Math.round(afterTax + ev.spouseIncome);
       rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual);
 
       // Compound each asset at its own rate + add its annual contribution
@@ -315,19 +326,19 @@ function calculatePath(scenario) {
           value:   a.value || 0,
         }));
 
-      // When income can't fully cover debt payments, draw the shortfall from savings pool
-      debtShortfall = Math.max(0, debtPayments - afterTax);
-      // Compound savings pool at scenario rate + deposit savings - events - any debt payment shortfall
-      savingsPool = savingsPool * (1 + returnRate) + savings - ev.oneTime - ev.annual - debtShortfall;
+      // All leftover cash (after debt payments, events, asset contribs) accumulates at 0%
+      const totalAssetContribsNow = assetPools.reduce((s, a) => s + a.contrib, 0);
+      const netCashToPool = afterTax + ev.spouseIncome - debtPayments - ev.oneTime - ev.annual - totalAssetContribsNow;
+      savingsPool = savingsPool + netCashToPool;
     } else {
-      // Retirement: compound assets (no new contributions), withdraw from savings pool
+      // Retirement: compound assets (no new contributions), withdraw from cash pool
       if (retireBal === null) {
         retireBal   = netWorth;
         annualDrawn = retireBal * 0.04;
       }
       rowExpenses = Math.round(annualDrawn);
       assetPools.forEach(a => { a.value = a.value * (1 + a.rate); });
-      savingsPool = savingsPool * (1 + returnRate) - annualDrawn;
+      savingsPool = savingsPool - annualDrawn;
     }
 
     // Appreciate homes at end of each year
@@ -355,11 +366,6 @@ function calculatePath(scenario) {
       .map(a => ({ name: ((scenario.assets || []).find(x => x.id === a.id) || {}).label || 'Asset', contrib: a.contrib }))
       .filter(a => a.contrib > 0);
 
-    // Living expenses = take-home pay minus everything accounted for (savings, debts, events)
-    const livingExpenses = isRetired ? 0 : Math.max(0,
-      rowIncome - Math.round(savings) - Math.round(debtPayments) - Math.round(ev.oneTime) - Math.round(ev.annual)
-    );
-
     rows.push({
       age,
       income: rowIncome,
@@ -376,7 +382,6 @@ function calculatePath(scenario) {
       // Cashflow fields
       isRetired,
       debtPayments:          Math.round(debtPayments),
-      savedToPool:           Math.round(savings),
       debtInterestBreakdown,
       debtPrincipalPayments: Math.round(Math.max(0, debtPayments - interestExpense)),
       totalAssetContribs:    Math.round(totalAssetContribs),
@@ -384,7 +389,8 @@ function calculatePath(scenario) {
       eventOneTimeItems:     ev.oneTimeItems,
       eventAnnualItems:      ev.annualItems,
       retirementWithdrawal:  isRetired ? Math.round(annualDrawn) : 0,
-      livingExpenses,
+      spouseIncome:          isRetired ? 0 : Math.round(ev.spouseIncome || 0),
+      spouseIncomeItems:     isRetired ? [] : (ev.spouseIncomeItems || []),
       assetInterestIncome,
       poolInterestIncome,
     });

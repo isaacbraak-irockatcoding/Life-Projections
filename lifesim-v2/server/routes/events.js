@@ -34,7 +34,9 @@ router.post('/:scenarioId/events', (req, res, next) => {
       one_time_cost = 0, duration_years = 1, color = '#38bdf8',
       home_value = 0, home_appreciation_rate = 3,
       mortgage_rate = 7, mortgage_years = 30,
-      annual_cost_pct = 3
+      annual_cost_pct = 3,
+      spouse_job_id = null, spouse_s0 = null, spouse_s35 = null,
+      spouse_s50 = null, spouse_career_start_age = null,
     } = req.body;
     if (!name || at_age == null) return res.status(400).json({ error: 'name and at_age are required' });
 
@@ -46,11 +48,13 @@ router.post('/:scenarioId/events', (req, res, next) => {
     const r = db.prepare(`
       INSERT INTO events (scenario_id, event_type, name, emoji, at_age, one_time_cost,
                           annual_impact, duration_years, color, home_value, home_appreciation_rate,
-                          mortgage_rate, mortgage_years, annual_cost_pct)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          mortgage_rate, mortgage_years, annual_cost_pct,
+                          spouse_job_id, spouse_s0, spouse_s35, spouse_s50, spouse_career_start_age)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(req.params.scenarioId, event_type, name, emoji, at_age,
            one_time_cost, annual_impact, duration_years, color,
-           home_value, home_appreciation_rate, mortgage_rate, mortgage_years, annual_cost_pct);
+           home_value, home_appreciation_rate, mortgage_rate, mortgage_years, annual_cost_pct,
+           spouse_job_id, spouse_s0, spouse_s35, spouse_s50, spouse_career_start_age);
 
     const event = db.prepare('SELECT * FROM events WHERE id = ?').get(r.lastInsertRowid);
 
@@ -87,7 +91,8 @@ router.patch('/:scenarioId/events/:id', (req, res, next) => {
   try {
     if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
     const allowed = ['event_type','name','emoji','at_age','one_time_cost','annual_impact','duration_years','color',
-                     'home_value','home_appreciation_rate','mortgage_rate','mortgage_years','annual_cost_pct'];
+                     'home_value','home_appreciation_rate','mortgage_rate','mortgage_years','annual_cost_pct',
+                     'spouse_job_id','spouse_s0','spouse_s35','spouse_s50','spouse_career_start_age'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets = fields.map(f => `${f} = ?`).join(', ');
