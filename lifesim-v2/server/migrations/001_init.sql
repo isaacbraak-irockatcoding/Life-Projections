@@ -120,6 +120,22 @@ ALTER TABLE events ADD COLUMN spouse_s35 REAL DEFAULT NULL;
 ALTER TABLE events ADD COLUMN spouse_s50 REAL DEFAULT NULL;
 ALTER TABLE events ADD COLUMN spouse_career_start_age INTEGER DEFAULT NULL;
 
+-- Living expenses questionnaire fields
+ALTER TABLE scenarios ADD COLUMN le_has_rent          INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN le_rent_monthly      REAL    NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN le_pet_count         INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN le_dining            TEXT    NOT NULL DEFAULT 'never';
+ALTER TABLE scenarios ADD COLUMN le_has_car           INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN le_utilities_monthly REAL    NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN health_insurance_monthly  REAL NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN health_insurance_coverage TEXT NOT NULL DEFAULT 'single';
+ALTER TABLE scenarios ADD COLUMN health_insurance_plan     TEXT NOT NULL DEFAULT 'standard';
+ALTER TABLE scenarios ADD COLUMN le_housing_tier       TEXT NOT NULL DEFAULT 'modest';
+ALTER TABLE scenarios ADD COLUMN le_groceries          TEXT NOT NULL DEFAULT 'average';
+ALTER TABLE scenarios ADD COLUMN le_phone_monthly      REAL NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN le_healthcare_monthly REAL NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN le_clothing_monthly   REAL NOT NULL DEFAULT 0;
+
 -- Groups feature
 CREATE TABLE IF NOT EXISTS groups (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

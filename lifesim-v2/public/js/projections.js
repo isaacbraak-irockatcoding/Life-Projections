@@ -6,7 +6,7 @@
 const charts = {};
 
 // Which sections are expanded per-session (global, survives scenario switches)
-const _openSections = { career: true, finances: false, events: false, settings: false };
+const _openSections = { career: true, finances: false, events: false, living: false, settings: false };
 
 // Time range for projection chart (null = All)
 let _projRange = null;
@@ -354,7 +354,8 @@ function renderCashflowSummary() {
       const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : ((r.income || 0) + (r.spouseIncome || 0));
       const totalRecurring = (r.interestExpense || 0)
                            + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0)
-                           + (r.debtPrincipalPayments || 0);
+                           + (r.debtPrincipalPayments || 0)
+                           + (r.livingExpenses || 0);
       const totalCapital   = (r.eventOneTimeItems || []).reduce((s, i) => s + (i.amount || 0), 0)
                            + (r.totalAssetContribs || 0);
       const netFlow        = totalCashIn - totalRecurring - totalCapital;
@@ -406,7 +407,10 @@ function renderCashflowSummary() {
         (r.eventAnnualItems || []).forEach(i => {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-neg">${fmtM(i.amount)}</td></tr>`;
         });
-        if (!((r.debtInterestBreakdown || []).length) && !(r.debtPrincipalPayments > 0) && !((r.eventAnnualItems || []).length)) {
+        if ((r.livingExpenses || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Living Expenses</td><td class="tbl-neg">${fmtM(r.livingExpenses)}</td></tr>`;
+        }
+        if (!((r.debtInterestBreakdown || []).length) && !(r.debtPrincipalPayments > 0) && !((r.eventAnnualItems || []).length) && !((r.livingExpenses || 0) > 0)) {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
         }
       }
@@ -483,6 +487,30 @@ function renderCashflowSummary() {
   }).join('');
 }
 
+// ── Living expenses helpers ────────────────────────────────────────────────────
+function calcLivingExpensesUI(s) {
+  const HOUSING_COSTS   = { shared: 700, basic: 1000, modest: 1400, comfortable: 2000, upscale: 3000, luxury: 5000 };
+  const DINING_COSTS    = { never: 0, sometimes: 1200, often: 3600, frequently: 7200 };
+  const GROCERIES_COSTS = { basic: 2400, average: 3600, generous: 5400 };
+  let total = 0;
+  total += (HOUSING_COSTS[s.le_housing_tier || 'modest'] || 1400) * 12;
+  total += (s.le_utilities_monthly || 0) * 12;
+  total += (s.le_pet_count || 0) * 1500;
+  total += DINING_COSTS[s.le_dining || 'never'] || 0;
+  total += GROCERIES_COSTS[s.le_groceries || 'average'] || 3600;
+  if (s.le_has_car) total += 3600;
+  total += (s.le_phone_monthly || 0) * 12;
+  total += (s.le_healthcare_monthly || 0) * 12;
+  total += (s.le_clothing_monthly || 0) * 12;
+  return total;
+}
+
+function onLivingChange(field, value) {
+  State.patchScenario({ [field]: value });
+  renderActiveScenarioEditor();
+  renderProjChart();
+}
+
 // ── Salary helper ──────────────────────────────────────────────────────────────
 function onSalaryChange(field, val) {
   const s   = State.getScenario();
@@ -506,7 +534,8 @@ function renderActiveScenarioEditor() {
   const effS0   = s.custom_s0  != null ? s.custom_s0  : job.s0;
   const effS50  = s.custom_s50 != null ? s.custom_s50 : job.s50;
 
-  const takeHomeS0      = calcAfterTaxSalary(effS0, s.state_code);
+  const breakdown       = calcTakeHomeBreakdown(effS0, s.state_code, calcHealthInsuranceAnnual(s));
+  const takeHomeS0      = breakdown.takeHome;
 
   const financeCount = (s.assets || []).length + (s.debts || []).length;
   const eventCount   = (s.events || []).length;
@@ -582,10 +611,6 @@ function renderActiveScenarioEditor() {
           </select>
         </div>
       </div>
-      ${s.state_code && s.state_code !== 'none'
-        ? `<p class="micro" style="color:var(--muted2);margin-top:-10px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. take-home at start salary: ~${fmtM(Math.round(takeHomeS0))}/yr (fed + state tax)</p>`
-        : `<p class="micro" style="color:var(--muted2);margin-top:-10px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. take-home at start salary: ~${fmtM(Math.round(takeHomeS0))}/yr (federal tax only)</p>`
-      }
 
       <!-- ── Career ── -->
       ${secHdr('career', 'Career')}
@@ -607,6 +632,55 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
         ${!isCustom ? `<p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Estimated salary — adjust if needed</p>` : ''}
+        <div class="field-row">
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Health Insurance Plan</label>
+            <select onchange="State.patchScenario({health_insurance_plan:this.value});renderActiveScenarioEditor();renderProjChart()">
+              <option value="basic"    ${(s.health_insurance_plan||'standard')==='basic'    ? 'selected':''}>Basic HMO</option>
+              <option value="standard" ${(s.health_insurance_plan||'standard')==='standard' ? 'selected':''}>Standard PPO</option>
+              <option value="premium"  ${(s.health_insurance_plan||'standard')==='premium'  ? 'selected':''}>Premium PPO</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Coverage</label>
+            <select onchange="State.patchScenario({health_insurance_coverage:this.value});renderActiveScenarioEditor();renderProjChart()">
+              <option value="single"  ${(s.health_insurance_coverage||'single')==='single'  ? 'selected':''}>Just me</option>
+              <option value="partner" ${(s.health_insurance_coverage||'single')==='partner' ? 'selected':''}>Me + partner</option>
+              <option value="kids"    ${(s.health_insurance_coverage||'single')==='kids'    ? 'selected':''}>Me + kids</option>
+              <option value="family"  ${(s.health_insurance_coverage||'single')==='family'  ? 'selected':''}>Family</option>
+            </select>
+          </div>
+        </div>
+        <p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. employee share based on 2024 employer benefit averages</p>
+
+        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:4px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+            <span class="micro" style="text-transform:none;letter-spacing:0;">Gross Salary</span>
+            <span style="font-size:13px;font-weight:600;">${fmtM(breakdown.gross)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− Federal Tax</span>
+            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.federal)}</span>
+          </div>
+          ${breakdown.state > 0 ? `
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− State Tax</span>
+            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.state)}</span>
+          </div>` : ''}
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− FICA (SS + Medicare)</span>
+            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.fica)}</span>
+          </div>
+          ${breakdown.health > 0 ? `
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− Health Insurance</span>
+            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.health)}</span>
+          </div>` : ''}
+          <div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;">
+            <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Take-Home</span>
+            <span style="font-size:14px;font-weight:700;color:var(--accent);">${fmtM(breakdown.takeHome)}/yr</span>
+          </div>
+        </div>
       </div>
 
       <!-- ── Finances ── -->
@@ -785,6 +859,105 @@ function renderActiveScenarioEditor() {
         </p>
         <button class="btn btn-primary" style="margin-bottom:16px;" onclick="addEvent()">Add to Timeline</button>
         <div id="event-list"></div>
+      </div>
+
+      <!-- ── Living Expenses ── -->
+      ${secHdr('living', 'Living Expenses')}
+      <div class="sec-body" style="display:${_openSections.living ? '' : 'none'};">
+
+        <!-- Housing -->
+        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Housing</p>
+        <div class="field" style="margin-bottom:10px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">How nice of a place do you live in?</label>
+          <select onchange="onLivingChange('le_housing_tier', this.value)">
+            <option value="shared"      ${(s.le_housing_tier||'modest')==='shared'      ? 'selected' : ''}>Shared / roommates (~$700/mo)</option>
+            <option value="basic"       ${(s.le_housing_tier||'modest')==='basic'       ? 'selected' : ''}>Basic studio (~$1,000/mo)</option>
+            <option value="modest"      ${(s.le_housing_tier||'modest')==='modest'      ? 'selected' : ''}>Modest 1BR (~$1,400/mo)</option>
+            <option value="comfortable" ${(s.le_housing_tier||'modest')==='comfortable' ? 'selected' : ''}>Comfortable (~$2,000/mo)</option>
+            <option value="upscale"     ${(s.le_housing_tier||'modest')==='upscale'     ? 'selected' : ''}>Upscale (~$3,000/mo)</option>
+            <option value="luxury"      ${(s.le_housing_tier||'modest')==='luxury'      ? 'selected' : ''}>Luxury (~$5,000/mo)</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:16px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">Monthly Utilities (electric, gas, water) ($)</label>
+          <input type="number" placeholder="150" value="${s.le_utilities_monthly || ''}"
+            onchange="onLivingChange('le_utilities_monthly', +this.value)"/>
+        </div>
+
+        <!-- Food -->
+        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Food</p>
+        <div class="field" style="margin-bottom:10px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">Groceries</label>
+          <select onchange="onLivingChange('le_groceries', this.value)">
+            <option value="basic"    ${(s.le_groceries||'average')==='basic'    ? 'selected' : ''}>Basic (~$2,400/yr)</option>
+            <option value="average"  ${(s.le_groceries||'average')==='average'  ? 'selected' : ''}>Average (~$3,600/yr)</option>
+            <option value="generous" ${(s.le_groceries||'average')==='generous' ? 'selected' : ''}>Well-stocked (~$5,400/yr)</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:16px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">How often do you eat out?</label>
+          <select onchange="onLivingChange('le_dining', this.value)">
+            <option value="never"      ${(s.le_dining||'never')==='never'      ? 'selected' : ''}>Never (~$0/yr)</option>
+            <option value="sometimes"  ${(s.le_dining||'never')==='sometimes'  ? 'selected' : ''}>Sometimes (~$1,200/yr)</option>
+            <option value="often"      ${(s.le_dining||'never')==='often'      ? 'selected' : ''}>Often (~$3,600/yr)</option>
+            <option value="frequently" ${(s.le_dining||'never')==='frequently' ? 'selected' : ''}>Frequently (~$7,200/yr)</option>
+          </select>
+        </div>
+
+        <!-- Transportation -->
+        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Transportation</p>
+        <div class="field-row" style="margin-bottom:16px;align-items:center;">
+          <label class="micro" style="flex:1;text-transform:none;letter-spacing:0;">Do you drive? (~$3,600/yr gas + insurance)</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" ${s.le_has_car ? 'checked' : ''}
+              onchange="onLivingChange('le_has_car', this.checked ? 1 : 0)"/>
+            <span class="micro" style="text-transform:none;">Yes</span>
+          </label>
+        </div>
+
+        <!-- Pets -->
+        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Pets</p>
+        <div class="field-row" style="margin-bottom:10px;align-items:center;">
+          <label class="micro" style="flex:1;text-transform:none;letter-spacing:0;">Do you have pets?</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" ${(s.le_pet_count || 0) > 0 ? 'checked' : ''}
+              onchange="onLivingChange('le_pet_count', this.checked ? 1 : 0)"/>
+            <span class="micro" style="text-transform:none;">Yes</span>
+          </label>
+        </div>
+        ${(s.le_pet_count || 0) > 0 ? `
+        <div class="field" style="margin-bottom:10px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">How many? (~$1,500/pet/yr)</label>
+          <input type="number" min="1" max="20" value="${s.le_pet_count || 1}"
+            onchange="onLivingChange('le_pet_count', +this.value)"/>
+        </div>` : ''}
+        <div style="margin-bottom:16px;"></div>
+
+        <!-- Other -->
+        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Other Monthly Expenses</p>
+        <div class="field" style="margin-bottom:10px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">Phone / mobile plan ($)</label>
+          <input type="number" placeholder="80" value="${s.le_phone_monthly || ''}"
+            onchange="onLivingChange('le_phone_monthly', +this.value)"/>
+        </div>
+        <div class="field" style="margin-bottom:10px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">Healthcare out-of-pocket ($)</label>
+          <input type="number" placeholder="150" value="${s.le_healthcare_monthly || ''}"
+            onchange="onLivingChange('le_healthcare_monthly', +this.value)"/>
+        </div>
+        <div class="field" style="margin-bottom:16px;">
+          <label class="micro" style="display:block;margin-bottom:5px;">Clothing &amp; personal care ($)</label>
+          <input type="number" placeholder="100" value="${s.le_clothing_monthly || ''}"
+            onchange="onLivingChange('le_clothing_monthly', +this.value)"/>
+        </div>
+
+        <!-- Summary -->
+        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
+          <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Annual Living Expenses</span>
+          <span style="font-size:15px;font-weight:700;color:var(--accent);">${fmtM(calcLivingExpensesUI(s))}</span>
+        </div>
+        <p class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;font-size:11px;margin-bottom:4px;">Deducted from income each year before savings. Grows 3%/yr with inflation. Rent stops if you purchase a home.</p>
+
       </div>
 
       <!-- ── Projection Settings ── -->

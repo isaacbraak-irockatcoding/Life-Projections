@@ -122,10 +122,38 @@ function getStateTaxRate(stateCode) {
   return STATE_TAX_RATES[stateCode] ?? 0;
 }
 
-function calcAfterTaxSalary(gross, stateCode) {
-  const federal = calcFederalTax(gross);
-  const state   = gross * getStateTaxRate(stateCode || 'none');
-  return Math.max(0, gross - federal - state);
+function calcFICA(gross) {
+  const SS_WAGE_BASE = 168600;
+  const ss      = Math.min(gross, SS_WAGE_BASE) * 0.062;
+  const medicare = gross * 0.0145;
+  const addlMed  = gross > 200000 ? (gross - 200000) * 0.009 : 0;
+  return ss + medicare + addlMed;
+}
+
+// Estimated employee health insurance premium based on coverage level and plan type
+// Based on 2024 KFF Employer Health Benefits Survey averages
+function calcHealthInsuranceAnnual(scenario) {
+  const PREMIUMS = {
+    basic:    { single: 80,  partner: 280, kids: 240, family: 450  },
+    standard: { single: 180, partner: 520, kids: 440, family: 750  },
+    premium:  { single: 300, partner: 800, kids: 680, family: 1100 },
+  };
+  const plan     = scenario.health_insurance_plan     || 'standard';
+  const coverage = scenario.health_insurance_coverage || 'single';
+  return ((PREMIUMS[plan] || PREMIUMS.standard)[coverage] || 180) * 12;
+}
+
+function calcTakeHomeBreakdown(gross, stateCode, healthInsuranceAnnual) {
+  const federal  = Math.round(calcFederalTax(gross));
+  const state    = Math.round(gross * getStateTaxRate(stateCode || 'none'));
+  const fica     = Math.round(calcFICA(gross));
+  const health   = Math.round(healthInsuranceAnnual || 0);
+  const takeHome = Math.max(0, gross - federal - state - fica - health);
+  return { gross, federal, state, fica, health, takeHome };
+}
+
+function calcAfterTaxSalary(gross, stateCode, healthInsuranceAnnual) {
+  return calcTakeHomeBreakdown(gross, stateCode, healthInsuranceAnnual).takeHome;
 }
 
 // Returns the annual interest accruing on all active debts at a given age
@@ -240,6 +268,31 @@ function getEventImpactDetail(age, events) {
   return { oneTime, annual, oneTimeItems, annualItems, spouseIncome, spouseIncomeItems };
 }
 
+// ── Living expenses calculator ─────────────────────────────────────────────────
+const HOUSING_COSTS_MAP = {
+  shared: 700, basic: 1000, modest: 1400, comfortable: 2000, upscale: 3000, luxury: 5000,
+};
+
+function calcHousingCost(scenario) {
+  return (HOUSING_COSTS_MAP[scenario.le_housing_tier || 'modest'] || 1400) * 12;
+}
+
+function calcLivingExpenses(scenario) {
+  const DINING_COSTS    = { never: 0, sometimes: 1200, often: 3600, frequently: 7200 };
+  const GROCERIES_COSTS = { basic: 2400, average: 3600, generous: 5400 };
+  let total = 0;
+  total += calcHousingCost(scenario);
+  total += (scenario.le_utilities_monthly || 0) * 12;
+  total += (scenario.le_pet_count || 0) * 1500;
+  total += DINING_COSTS[scenario.le_dining || 'never'] || 0;
+  total += GROCERIES_COSTS[scenario.le_groceries || 'average'] || 3600;
+  if (scenario.le_has_car) total += 3600;
+  total += (scenario.le_phone_monthly || 0) * 12;
+  total += (scenario.le_healthcare_monthly || 0) * 12;
+  total += (scenario.le_clothing_monthly || 0) * 12;
+  return total;
+}
+
 // ── Main projection ────────────────────────────────────────────────────────────
 // Each asset compounds at its own expected_return_rate with its annual_contribution.
 // Leftover cash (income − debt payments − events − asset contribs) accumulates in a
@@ -250,8 +303,10 @@ function calculatePath(scenario) {
     ? { ...job, s0: scenario.custom_s0, s35: scenario.custom_s35 || job.s35, s50: scenario.custom_s50 || job.s50 }
     : job;
 
-  const startAge       = scenario.start_age || 25;
-  const careerStartAge = scenario.career_start_age ?? 22;
+  const startAge          = scenario.start_age || 25;
+  const careerStartAge    = scenario.career_start_age ?? 22;
+  const baseLivingTotal   = (scenario.annual_expenses || 0) + calcLivingExpenses(scenario);
+  const baseHousingCost   = calcHousingCost(scenario);
 
   // Individual asset pools — each grows at its own rate with its own annual contribution
   const assetPools = (scenario.assets || [])
@@ -266,6 +321,11 @@ function calculatePath(scenario) {
   // Cash pool: leftover income after all outflows accumulates here at 0% return
   // Debts are tracked as separate liabilities via getRemainingDebtBalance
   let savingsPool = 0;
+
+  // Age at which the user first buys a home — rent stops from this age onward
+  const housePurchaseAge = (scenario.events || [])
+    .filter(e => e.event_type === 'house_purchase')
+    .reduce((min, e) => Math.min(min, e.at_age), Infinity);
 
   const workAges = Array.from({ length: 46 }, (_, i) => startAge + i);
   const path     = new Array(startAge).fill(null);
@@ -297,6 +357,11 @@ function calculatePath(scenario) {
     const debtInterestBreakdown = getDebtInterestBreakdown(scenario.debts, age, startAge);
     const interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
 
+    // Living expenses for this year: inflate 3%/yr, drop rent once a house is owned
+    const yearsElapsed   = age - startAge;
+    const hasHouse       = age >= housePurchaseAge;
+    const livingExpenses = (baseLivingTotal - (hasHouse ? baseHousingCost : 0)) * Math.pow(1.03, yearsElapsed);
+
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;
     let debtPayments = 0;
@@ -305,11 +370,11 @@ function calculatePath(scenario) {
     if (!isRetired) {
       const yearsWorked  = age - careerStartAge;
       const salary       = yearsWorked >= 0 ? getSalary(effectiveJob, yearsWorked) : 0;
-      const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code) : 0;
+      const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code, calcHealthInsuranceAnnual(scenario)) : 0;
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
 
       rowIncome   = Math.round(afterTax + ev.spouseIncome);
-      rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual);
+      rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual + livingExpenses);
 
       // Compound each asset at its own rate + add its annual contribution
       assetPools.forEach(a => {
@@ -328,7 +393,7 @@ function calculatePath(scenario) {
 
       // All leftover cash (after debt payments, events, asset contribs) accumulates at 0%
       const totalAssetContribsNow = assetPools.reduce((s, a) => s + a.contrib, 0);
-      const netCashToPool = afterTax + ev.spouseIncome - debtPayments - ev.oneTime - ev.annual - totalAssetContribsNow;
+      const netCashToPool = afterTax + ev.spouseIncome - debtPayments - ev.oneTime - ev.annual - totalAssetContribsNow - livingExpenses;
       savingsPool = savingsPool + netCashToPool;
     } else {
       // Retirement: compound assets (no new contributions), withdraw from cash pool
@@ -393,6 +458,7 @@ function calculatePath(scenario) {
       spouseIncomeItems:     isRetired ? [] : (ev.spouseIncomeItems || []),
       assetInterestIncome,
       poolInterestIncome,
+      livingExpenses:        isRetired ? 0 : Math.round(livingExpenses),
     });
   });
 
