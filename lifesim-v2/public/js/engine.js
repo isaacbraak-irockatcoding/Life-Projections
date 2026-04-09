@@ -133,6 +133,7 @@ function calcFICA(gross) {
 // Estimated employee health insurance premium based on coverage level and plan type
 // Based on 2024 KFF Employer Health Benefits Survey averages
 function calcHealthInsuranceAnnual(scenario) {
+  if (!scenario.health_insurance_enabled && scenario.health_insurance_enabled !== undefined) return 0;
   const PREMIUMS = {
     basic:    { single: 80,  partner: 280, kids: 240, family: 450  },
     standard: { single: 180, partner: 520, kids: 440, family: 750  },

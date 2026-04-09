@@ -632,6 +632,18 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
         ${!isCustom ? `<p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Estimated salary — adjust if needed</p>` : ''}
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <label class="micro" style="text-transform:none;letter-spacing:0;margin:0;">Employer health insurance</label>
+          <label style="position:relative;display:inline-flex;align-items:center;cursor:pointer;margin-left:auto;">
+            <input type="checkbox" ${(s.health_insurance_enabled ?? 1) ? 'checked' : ''}
+              onchange="State.patchScenario({health_insurance_enabled:this.checked?1:0});renderActiveScenarioEditor();renderProjChart()"
+              style="opacity:0;width:0;height:0;position:absolute;"/>
+            <span style="display:inline-block;width:36px;height:20px;background:${(s.health_insurance_enabled ?? 1) ? 'var(--accent)' : 'var(--muted2)'};border-radius:10px;transition:background 0.2s;position:relative;">
+              <span style="position:absolute;top:2px;left:${(s.health_insurance_enabled ?? 1) ? '18px' : '2px'};width:16px;height:16px;background:#fff;border-radius:50%;transition:left 0.2s;"></span>
+            </span>
+          </label>
+        </div>
+        ${(s.health_insurance_enabled ?? 1) ? `
         <div class="field-row">
           <div class="field">
             <label class="micro" style="display:block;margin-bottom:5px;">Health Insurance Plan</label>
@@ -652,6 +664,7 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
         <p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. employee share based on 2024 employer benefit averages</p>
+        ` : `<p class="micro" style="color:var(--muted2);margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Health insurance not included in take-home calculation</p>`}
 
         <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;">

@@ -130,6 +130,7 @@ ALTER TABLE scenarios ADD COLUMN le_utilities_monthly REAL    NOT NULL DEFAULT 0
 ALTER TABLE scenarios ADD COLUMN health_insurance_monthly  REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN health_insurance_coverage TEXT NOT NULL DEFAULT 'single';
 ALTER TABLE scenarios ADD COLUMN health_insurance_plan     TEXT NOT NULL DEFAULT 'standard';
+ALTER TABLE scenarios ADD COLUMN health_insurance_enabled  INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE scenarios ADD COLUMN le_housing_tier       TEXT NOT NULL DEFAULT 'modest';
 ALTER TABLE scenarios ADD COLUMN le_groceries          TEXT NOT NULL DEFAULT 'average';
 ALTER TABLE scenarios ADD COLUMN le_phone_monthly      REAL NOT NULL DEFAULT 0;

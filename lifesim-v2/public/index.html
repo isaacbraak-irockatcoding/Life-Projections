@@ -109,6 +109,13 @@
   </div>
 </div>
 
+<!-- ═══════════════ EXPLORE SCREEN ═══════════════ -->
+<div id="screen-explore" style="display:none;">
+  <div class="container">
+    <div id="explore-content"></div>
+  </div>
+</div>
+
 <!-- ═══════════════ BOTTOM NAV ═══════════════ -->
 <nav class="nav" id="main-nav" style="display:none;">
   <div class="nav-item" id="nav-proj"    onclick="switchTab('proj')">
@@ -122,6 +129,9 @@
   </div>
   <div class="nav-item" id="nav-friends" onclick="switchTab('friends')">
     <span class="nav-icon">👥</span>Friends
+  </div>
+  <div class="nav-item" id="nav-explore" onclick="switchTab('explore')">
+    <span class="nav-icon">🧭</span>Explore
   </div>
 </nav>
 
@@ -138,6 +148,7 @@
 <script src="/js/share.js"></script>
 <script src="/js/friends.js"></script>
 <script src="/js/groups.js"></script>
+<script src="/js/explore.js"></script>
 <script src="/js/auth.js"></script>
 <script>
   // Toast utility

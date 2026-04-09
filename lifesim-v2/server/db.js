@@ -3,7 +3,9 @@ const path = require('path');
 const fs   = require('fs');
 require('dotenv').config();
 
-const dbPath = path.resolve(process.env.DB_PATH || './lifesim.db');
+const dbPath = process.env.DB_PATH
+  ? path.resolve(process.env.DB_PATH)
+  : path.join(__dirname, '..', 'lifesim.db');
 const db = new DatabaseSync(dbPath);
 
 // Enable WAL mode and foreign keys
