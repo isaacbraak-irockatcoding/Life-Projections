@@ -136,6 +136,16 @@ ALTER TABLE scenarios ADD COLUMN le_phone_monthly      REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN le_healthcare_monthly REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN le_clothing_monthly   REAL NOT NULL DEFAULT 0;
 
+-- School section fields
+ALTER TABLE scenarios ADD COLUMN school_name             TEXT    NOT NULL DEFAULT '';
+ALTER TABLE scenarios ADD COLUMN school_tuition_annual   REAL    NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN school_years            INTEGER NOT NULL DEFAULT 4;
+ALTER TABLE scenarios ADD COLUMN school_start_age        INTEGER;
+ALTER TABLE scenarios ADD COLUMN school_parent_pays      INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN school_scholarship_annual REAL  NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN school_scholarship_years  INTEGER NOT NULL DEFAULT 4;
+ALTER TABLE scenarios ADD COLUMN school_loan_id          INTEGER;
+
 -- Groups feature
 CREATE TABLE IF NOT EXISTS groups (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,

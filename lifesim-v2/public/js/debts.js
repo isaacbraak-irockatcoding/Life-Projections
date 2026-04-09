@@ -67,6 +67,97 @@ function renderDebtsList() {
   }).join('');
 }
 
+// ── School loan auto-management ────────────────────────────────────────────────
+
+// Called whenever a school field changes. Patches scenario locally, syncs loan, re-renders.
+async function updateSchoolField(field, value) {
+  State.patchScenario({ [field]: value });
+  await syncSchoolLoan();
+  renderActiveScenarioEditor();
+  renderProjChart();
+}
+
+// Creates, updates, or deletes the auto-managed student loan based on school settings.
+async function syncSchoolLoan() {
+  const s = State.getScenario();
+  if (!s) return;
+
+  const schoolStart = s.school_start_age ?? s.start_age;
+  const years       = s.school_years || 4;
+  const tuition     = s.school_tuition_annual || 0;
+  const schAnnual   = s.school_scholarship_annual || 0;
+  const schYears    = s.school_scholarship_years ?? years;
+
+  // Total loan = sum of net tuition each year (tuition minus scholarship while it lasts)
+  let totalLoan = 0;
+  for (let y = 0; y < years; y++) {
+    totalLoan += Math.max(0, tuition - (y < schYears ? schAnnual : 0));
+  }
+
+  const needsLoan   = !s.school_parent_pays && totalLoan > 0;
+  const loanStartAge = schoolStart + years;
+  const SCHOOL_RATE  = 6.54; // federal direct unsubsidized rate
+  const r = SCHOOL_RATE / 100 / 12;
+  const n = 120; // 10-year repayment
+  const monthlyPmt = r > 0
+    ? Math.ceil(totalLoan * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1))
+    : Math.ceil(totalLoan / n);
+
+  if (!needsLoan) {
+    if (s.school_loan_id) {
+      await api.deleteDebt(s.id, s.school_loan_id);
+      State.removeDebt(s.school_loan_id);
+      State.patchScenario({ school_loan_id: null });
+      await api.saveScenario(s.id, { school_loan_id: null });
+    }
+    return;
+  }
+
+  const debtPayload = {
+    type:            'student_loan',
+    label:           (s.school_name?.trim() || 'School') + ' Loan',
+    balance:         Math.round(totalLoan),
+    interest_rate:   SCHOOL_RATE,
+    monthly_payment: monthlyPmt,
+    start_age:       loanStartAge,
+  };
+
+  if (s.school_loan_id) {
+    // Update existing school loan
+    const d = await api.updateDebt(s.id, s.school_loan_id, debtPayload);
+    State.updateDebt(d);
+  } else {
+    // Create new school loan and persist its ID on the scenario immediately
+    const d = await api.createDebt(s.id, debtPayload);
+    State.addDebt(d);
+    State.patchScenario({ school_loan_id: d.id });
+    await api.saveScenario(s.id, { school_loan_id: d.id });
+  }
+}
+
+// ── Manual debt form helpers ────────────────────────────────────────────────────
+
+// Calculates and fills the monthly payment field using standard 10-year amortization
+function autoCalcDebtPayment() {
+  const balance = parseFloat(document.getElementById('debt-balance').value) || 0;
+  const rate    = parseFloat(document.getElementById('debt-rate').value) || 0;
+  if (!balance) return;
+  const r = rate / 100 / 12;
+  const n = 120; // 10-year standard repayment
+  const pmt = r > 0
+    ? balance * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1)
+    : balance / n;
+  document.getElementById('debt-pmt').value = Math.ceil(pmt);
+}
+
+// Auto-fill payment when type changes to student_loan (if balance/rate are already set)
+document.addEventListener('change', e => {
+  if (e.target && e.target.id === 'debt-type-select' && e.target.value === 'student_loan') {
+    const balance = parseFloat(document.getElementById('debt-balance').value) || 0;
+    if (balance > 0) autoCalcDebtPayment();
+  }
+});
+
 async function addDebt() {
   const scenario = State.getScenario();
   if (!scenario) return;

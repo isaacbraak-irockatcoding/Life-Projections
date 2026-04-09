@@ -341,6 +341,14 @@ function calculatePath(scenario) {
       }
     });
 
+    // Loan disbursements: student loans starting this year inject cash into the pool
+    // (the liability and the cash received cancel out, keeping net worth neutral at loan start)
+    const loanDisbursements = (scenario.debts || [])
+      .filter(d => d.type === 'student_loan' && (d.start_age || startAge) === age)
+      .map(d => ({ label: d.label || 'Student Loan', amount: d.balance || 0 }));
+    const totalLoanDisbursement = loanDisbursements.reduce((s, d) => s + d.amount, 0);
+    savingsPool += totalLoanDisbursement;
+
     // Net worth snapshot (before this year's growth) — used for retirement calculation
     const assetTotal    = assetPools.reduce((s, a) => s + a.value, 0);
     const homeTotal     = homes.reduce((s, h) => s + h.value, 0);
@@ -459,6 +467,8 @@ function calculatePath(scenario) {
       assetInterestIncome,
       poolInterestIncome,
       livingExpenses:        isRetired ? 0 : Math.round(livingExpenses),
+      loanDisbursements,
+      totalLoanDisbursement: Math.round(totalLoanDisbursement),
     });
   });
 

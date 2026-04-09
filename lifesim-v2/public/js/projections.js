@@ -6,7 +6,7 @@
 const charts = {};
 
 // Which sections are expanded per-session (global, survives scenario switches)
-const _openSections = { career: true, finances: false, events: false, living: false, settings: false };
+const _openSections = { school: false, career: false, finances: false, events: false, living: false, settings: false };
 
 // Time range for projection chart (null = All)
 let _projRange = null;
@@ -351,7 +351,8 @@ function renderCashflowSummary() {
     const capitalOpen   = !!_cashflowExpanded[`${s.id}-cf-capital`];
 
     const tableRows = rows.map(r => {
-      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : ((r.income || 0) + (r.spouseIncome || 0));
+      const loanDisbursementTotal = (r.loanDisbursements || []).reduce((s, d) => s + d.amount, 0);
+      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : ((r.income || 0) + (r.spouseIncome || 0) + loanDisbursementTotal);
       const totalRecurring = (r.interestExpense || 0)
                            + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0)
                            + (r.debtPrincipalPayments || 0)
@@ -386,6 +387,9 @@ function renderCashflowSummary() {
           }
           (r.spouseIncomeItems || []).forEach(i => {
             html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-pos">${fmtM(i.amount)}</td></tr>`;
+          });
+          (r.loanDisbursements || []).forEach(d => {
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${d.label} — Disbursement</td><td class="tbl-pos">${fmtM(d.amount)}</td></tr>`;
           });
         }
       }
@@ -612,6 +616,93 @@ function renderActiveScenarioEditor() {
         </div>
       </div>
 
+      <!-- ── School ── -->
+      ${secHdr('school', 'School')}
+      <div class="sec-body" style="display:${_openSections.school ? '' : 'none'};">
+        ${(() => {
+          const schoolStart = s.school_start_age ?? s.start_age;
+          const parentPays  = !!s.school_parent_pays;
+          const tuition     = s.school_tuition_annual || 0;
+          const years       = s.school_years || 4;
+          const schAnnual   = s.school_scholarship_annual || 0;
+          const schYears    = s.school_scholarship_years ?? years;
+
+          // Compute total net loan
+          let totalLoan = 0;
+          for (let y = 0; y < years; y++) {
+            totalLoan += Math.max(0, tuition - (y < schYears ? schAnnual : 0));
+          }
+          const loanAge  = schoolStart + years;
+          const hasLoan  = !parentPays && totalLoan > 0;
+
+          return `
+        <div class="field-row">
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">School Name</label>
+            <input type="text" value="${s.school_name || ''}" placeholder="e.g. State University"
+              onchange="updateSchoolField('school_name', this.value)"/>
+          </div>
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Annual Tuition ($)</label>
+            <input type="number" min="0" value="${tuition}"
+              onchange="updateSchoolField('school_tuition_annual', +this.value)"/>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Years in School</label>
+            <input type="number" min="1" max="12" value="${years}"
+              onchange="updateSchoolField('school_years', +this.value)"/>
+          </div>
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">School Start Age</label>
+            <input type="number" min="14" max="60" value="${schoolStart}"
+              onchange="updateSchoolField('school_start_age', +this.value)"/>
+          </div>
+        </div>
+
+        <label class="micro" style="display:block;margin-bottom:6px;margin-top:2px;">Does mommy or daddy pay for school?</label>
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="btn btn-sm${parentPays ? ' btn-primary' : ' btn-ghost'}"
+            onclick="updateSchoolField('school_parent_pays', 1)">Yes 🎓 Free tuition!</button>
+          <button class="btn btn-sm${!parentPays ? ' btn-primary' : ' btn-ghost'}"
+            onclick="updateSchoolField('school_parent_pays', 0)">No 💸 Need a loan</button>
+        </div>
+
+        <label class="micro" style="display:block;margin-bottom:6px;">Scholarships</label>
+        <div class="field-row">
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Annual Scholarship ($)</label>
+            <input type="number" min="0" value="${schAnnual}"
+              onchange="updateSchoolField('school_scholarship_annual', +this.value)"/>
+          </div>
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">For # of Years</label>
+            <input type="number" min="1" max="12" value="${schYears}"
+              onchange="updateSchoolField('school_scholarship_years', +this.value)"/>
+          </div>
+        </div>
+
+        ${hasLoan ? `
+        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span class="micro" style="text-transform:none;letter-spacing:0;">Auto Student Loan</span>
+            <span style="font-size:13px;font-weight:600;color:var(--coral);">${fmtM(Math.round(totalLoan))}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;">Repayment starts at age ${loanAge} (10yr @ 6.54%)</span>
+          </div>
+        </div>` : parentPays ? `
+        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
+          <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Tuition covered — no loan needed</span>
+        </div>` : totalLoan <= 0 && tuition > 0 ? `
+        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
+          <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Scholarship covers full tuition — no loan needed</span>
+        </div>` : ''}
+          `;
+        })()}
+      </div>
+
       <!-- ── Career ── -->
       ${secHdr('career', 'Career')}
       <div class="sec-body" style="display:${_openSections.career ? '' : 'none'};">
@@ -751,7 +842,7 @@ function renderActiveScenarioEditor() {
             <input type="number" id="debt-rate" placeholder="5" value="5" step="0.1"/>
           </div>
           <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Monthly Payment ($)</label>
+            <label class="micro" style="display:block;margin-bottom:5px;">Monthly Payment ($) — <a onclick="autoCalcDebtPayment()" style="font-size:10px;cursor:pointer;color:var(--teal);">Auto (10yr)</a></label>
             <input type="number" id="debt-pmt" placeholder="0"/>
           </div>
         </div>
