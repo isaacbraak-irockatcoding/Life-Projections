@@ -22,6 +22,8 @@ const _cashflowExpanded = {};
 let _compareMode = false;
 // Cache of fully-loaded scenario objects keyed by id
 const _scenarioCache = {};
+// Animate mode: progressive line draw on chart
+let _animateMode = false;
 
 function getToRender() {
   const active = State.getScenario();
@@ -44,6 +46,12 @@ async function toggleCompareMode() {
   renderProjChart();
   renderProjTable();
   renderCashflowSummary();
+}
+
+function toggleAnimateMode() {
+  _animateMode = !_animateMode;
+  document.getElementById('animate-btn')?.classList.toggle('active', _animateMode);
+  renderProjChart();
 }
 
 function setProjRange(years) {
@@ -186,11 +194,40 @@ function renderProjChart() {
     };
   });
 
+  // Progressive line-draw animation — each point appears sequentially left to right
+  const totalDuration = 5000;
+  const pointCount    = results[0]?.path?.length || 80;
+  const delay         = totalDuration / pointCount;
+  const animOptions   = _animateMode ? {
+    x: {
+      type: 'number', easing: 'linear', duration: delay, from: NaN,
+      delay(ctx) {
+        if (ctx.type !== 'data' || ctx.xStarted) return 0;
+        ctx.xStarted = true;
+        return ctx.index * delay;
+      },
+    },
+    y: {
+      type: 'number', easing: 'linear', duration: delay,
+      from(ctx) {
+        if (ctx.index === 0) return ctx.chart.scales.y.getPixelForValue(0);
+        const prev = ctx.chart.getDatasetMeta(ctx.datasetIndex).data[ctx.index - 1];
+        return prev ? prev.getProps(['y'], true).y : 0;
+      },
+      delay(ctx) {
+        if (ctx.type !== 'data' || ctx.yStarted) return 0;
+        ctx.yStarted = true;
+        return ctx.index * delay;
+      },
+    },
+  } : false;
+
   if (charts.proj) charts.proj.destroy();
   charts.proj = new Chart(document.getElementById('projChart').getContext('2d'), {
     type: 'line',
     data: { labels: ages, datasets },
     options: {
+      animation: animOptions,
       responsive: true,
       interaction: { mode: 'index', intersect: false },
       scales: {
@@ -557,18 +594,15 @@ function renderActiveScenarioEditor() {
   const container = document.getElementById('scenario-editors');
   if (!s || !container) return;
 
-  const job     = JOBS.find(j => j.id === s.job_id) || JOBS[0];
-  const isCustom = s.job_id === 'custom';
-  const effS0   = s.custom_s0  != null ? s.custom_s0  : job.s0;
-  const effS50  = s.custom_s50 != null ? s.custom_s50 : job.s50;
+  const job   = JOBS.find(j => j.id === s.job_id) || JOBS[0];
+  const effS0 = s.custom_s0 != null ? s.custom_s0 : job.s0;
 
   // For the take-home breakdown: use first career's starting salary if careers exist
   const firstCareer = (s.careers || []).sort((a,b) => a.start_age - b.start_age)[0];
   const breakdownSalary = firstCareer
     ? (firstCareer.custom_s0 != null ? firstCareer.custom_s0 : (JOBS.find(j=>j.id===firstCareer.job_id)||JOBS[0]).s0)
     : effS0;
-  const breakdown       = calcTakeHomeBreakdown(breakdownSalary, s.state_code, calcHealthInsuranceAnnual(s));
-  const takeHomeS0      = breakdown.takeHome;
+  const breakdown = calcTakeHomeBreakdown(breakdownSalary, s.state_code, calcHealthInsuranceAnnual(s));
 
   const financeCount = (s.assets || []).length + (s.debts || []).length;
   const eventCount   = (s.events || []).length;
