@@ -538,7 +538,12 @@ function renderActiveScenarioEditor() {
   const effS0   = s.custom_s0  != null ? s.custom_s0  : job.s0;
   const effS50  = s.custom_s50 != null ? s.custom_s50 : job.s50;
 
-  const breakdown       = calcTakeHomeBreakdown(effS0, s.state_code, calcHealthInsuranceAnnual(s));
+  // For the take-home breakdown: use first career's starting salary if careers exist
+  const firstCareer = (s.careers || []).sort((a,b) => a.start_age - b.start_age)[0];
+  const breakdownSalary = firstCareer
+    ? (firstCareer.custom_s0 != null ? firstCareer.custom_s0 : (JOBS.find(j=>j.id===firstCareer.job_id)||JOBS[0]).s0)
+    : effS0;
+  const breakdown       = calcTakeHomeBreakdown(breakdownSalary, s.state_code, calcHealthInsuranceAnnual(s));
   const takeHomeS0      = breakdown.takeHome;
 
   const financeCount = (s.assets || []).length + (s.debts || []).length;
@@ -590,8 +595,8 @@ function renderActiveScenarioEditor() {
           <input type="number" min="0" max="80" value="${s.start_age}" onchange="State.patchScenario({start_age:+this.value});renderActiveScenarioEditor();renderProjChart()"/>
         </div>
         <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Career Start Age</label>
-          <input type="number" min="14" max="45" value="${s.career_start_age ?? 22}" onchange="State.patchScenario({career_start_age:+this.value});renderProjChart()"/>
+          <label class="micro" style="display:block;margin-bottom:5px;">Retire Age</label>
+          <input type="number" min="40" max="90" value="${s.retire_age ?? 65}" onchange="State.patchScenario({retire_age:+this.value});renderProjChart()"/>
         </div>
         <div class="field">
           <label class="micro" style="display:block;margin-bottom:5px;">State</label>
@@ -704,25 +709,63 @@ function renderActiveScenarioEditor() {
       </div>
 
       <!-- ── Career ── -->
-      ${secHdr('career', 'Career')}
+      ${secHdr('career', 'Career', (s.careers||[]).length || '')}
       <div class="sec-body" style="display:${_openSections.career ? '' : 'none'};">
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Career Path</label>
-          <select onchange="onJobChange(this.value)">
-            ${JOBS.map(j => `<option value="${j.id}"${j.id === s.job_id ? ' selected' : ''}>${j.name}</option>`).join('')}
-          </select>
+        ${(s.careers || []).length === 0 ? `
+        <p class="micro" style="color:var(--muted2);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">
+          Add careers below. Each career has its own salary curve and active age range.
+        </p>` : ''}
+        ${(s.careers || []).sort((a,b) => a.start_age - b.start_age).map((c, i) => {
+          const cJob = JOBS.find(j => j.id === c.job_id) || JOBS[0];
+          const cs0  = c.custom_s0  != null ? c.custom_s0  : cJob.s0;
+          const cs50 = c.custom_s50 != null ? c.custom_s50 : cJob.s50;
+          return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">Career ${i+1}</span>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteCareer(${c.id})">✕</button>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Career Path</label>
+              <select onchange="updateCareer(${c.id},{job_id:this.value})">
+                ${JOBS.map(j => `<option value="${j.id}"${j.id===c.job_id?' selected':''}>${j.name}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Start Salary ($)</label>
+                <input type="number" value="${cs0}" onchange="updateCareer(${c.id},{custom_s0:+this.value})"/>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Peak Salary ($)</label>
+                <input type="number" value="${cs50}" onchange="updateCareer(${c.id},{custom_s50:+this.value})"/>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Start Age</label>
+                <input type="number" min="14" max="80" value="${c.start_age}" onchange="updateCareer(${c.id},{start_age:+this.value})"/>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">End Age (blank = until retirement)</label>
+                <input type="number" min="14" max="80" value="${c.end_age != null ? c.end_age : ''}" placeholder="—"
+                  onchange="updateCareer(${c.id},{end_age:this.value?+this.value:null})"/>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:16px;" onclick="addCareer()">+ Add Career</button>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <label class="micro" style="text-transform:none;letter-spacing:0;margin:0;">Employer health insurance</label>
+          <label style="position:relative;display:inline-flex;align-items:center;cursor:pointer;margin-left:auto;">
+            <input type="checkbox" ${(s.health_insurance_enabled ?? 1) ? 'checked' : ''}
+              onchange="State.patchScenario({health_insurance_enabled:this.checked?1:0});renderActiveScenarioEditor();renderProjChart()"
+              style="opacity:0;width:0;height:0;position:absolute;"/>
+            <span style="display:inline-block;width:36px;height:20px;background:${(s.health_insurance_enabled ?? 1) ? 'var(--accent)' : 'var(--muted2)'};border-radius:10px;transition:background 0.2s;position:relative;">
+              <span style="position:absolute;top:2px;left:${(s.health_insurance_enabled ?? 1) ? '18px' : '2px'};width:16px;height:16px;background:#fff;border-radius:50%;transition:left 0.2s;"></span>
+            </span>
+          </label>
         </div>
-        <div class="field-row">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Start Salary ($)</label>
-            <input type="number" value="${effS0}" onchange="onSalaryChange('s0',this.value)"/>
-          </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Peak Salary ($)</label>
-            <input type="number" value="${effS50}" onchange="onSalaryChange('s50',this.value)"/>
-          </div>
-        </div>
-        ${!isCustom ? `<p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Estimated salary — adjust if needed</p>` : ''}
+        ${(s.health_insurance_enabled ?? 1) ? `
         <div class="field-row">
           <div class="field">
             <label class="micro" style="display:block;margin-bottom:5px;">Health Insurance Plan</label>
@@ -743,6 +786,7 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
         <p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. employee share based on 2024 employer benefit averages</p>
+        ` : `<p class="micro" style="color:var(--muted2);margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Health insurance not included in take-home calculation</p>`}
 
         <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:4px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
@@ -957,9 +1001,25 @@ function renderActiveScenarioEditor() {
       <div class="sec-body" style="display:${_openSections.living ? '' : 'none'};">
 
         <!-- Housing -->
-        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Housing</p>
+        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Housing / Rent</p>
+        <div class="field-row" style="margin-bottom:10px;">
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Rent Start Age</label>
+            <input type="number" min="16" max="80" value="${s.rent_start_age != null ? s.rent_start_age : (s.start_age || 25)}"
+              onchange="State.patchScenario({rent_start_age:+this.value});renderProjChart()"/>
+          </div>
+          <div class="field">
+            <label class="micro" style="display:block;margin-bottom:5px;">Rent End Age</label>
+            <input type="number" min="16" max="80" value="${s.rent_end_age != null ? s.rent_end_age : ''}"
+              placeholder="— (house purchase)"
+              onchange="State.patchScenario({rent_end_age:this.value?+this.value:null});renderProjChart()"/>
+          </div>
+        </div>
+        <p class="micro" style="color:var(--muted2);margin-bottom:12px;text-transform:none;letter-spacing:0;font-size:11px;">
+          Rent stops automatically when you add a House Purchase life event. Set End Age to override (e.g., moved back home).
+        </p>
         <div class="field" style="margin-bottom:10px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">How nice of a place do you live in?</label>
+          <label class="micro" style="display:block;margin-bottom:5px;">How nice of a place do you rent?</label>
           <select onchange="onLivingChange('le_housing_tier', this.value)">
             <option value="shared"      ${(s.le_housing_tier||'modest')==='shared'      ? 'selected' : ''}>Shared / roommates (~$700/mo)</option>
             <option value="basic"       ${(s.le_housing_tier||'modest')==='basic'       ? 'selected' : ''}>Basic studio (~$1,000/mo)</option>
@@ -1092,6 +1152,61 @@ function onJobChange(val) {
   State.patchScenario({ job_id: val, custom_s0: null, custom_s35: null, custom_s50: null });
   renderActiveScenarioEditor();
   renderProjChart();
+}
+
+// ── Multi-career management ────────────────────────────────────────────────────
+async function addCareer() {
+  const s = State.getScenario();
+  if (!s) return;
+  const existingCareers = s.careers || [];
+  // Default start age: after the last career ends, or career_start_age, or 22
+  const lastCareer = existingCareers.sort((a,b) => a.start_age - b.start_age).slice(-1)[0];
+  const defaultStart = lastCareer ? (lastCareer.end_age || (lastCareer.start_age + 10)) : (s.career_start_age || 22);
+  const job = JOBS[0];
+  try {
+    const career = await api.createCareer(s.id, {
+      job_id: job.id, start_age: defaultStart, custom_s0: job.s0, custom_s50: job.s50,
+    });
+    State.addCareer(career);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
+}
+
+async function updateCareer(careerId, fields) {
+  const s = State.getScenario();
+  if (!s) return;
+  // If salary field changed, also auto-compute s35
+  if (fields.custom_s0 != null || fields.custom_s50 != null) {
+    const career = (s.careers || []).find(c => c.id === careerId);
+    if (career) {
+      const job = JOBS.find(j => j.id === career.job_id) || JOBS[0];
+      const s0  = fields.custom_s0  != null ? fields.custom_s0  : (career.custom_s0  ?? job.s0);
+      const s50 = fields.custom_s50 != null ? fields.custom_s50 : (career.custom_s50 ?? job.s50);
+      fields.custom_s35 = Math.round(s0 + (s50 - s0) * 0.65);
+    }
+  }
+  // If job changed, clear custom salary so defaults kick in
+  if (fields.job_id != null) {
+    fields.custom_s0 = null; fields.custom_s35 = null; fields.custom_s50 = null;
+  }
+  try {
+    const updated = await api.updateCareer(s.id, careerId, fields);
+    State.updateCareer(updated);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
+}
+
+async function deleteCareer(careerId) {
+  const s = State.getScenario();
+  if (!s) return;
+  try {
+    await api.deleteCareer(s.id, careerId);
+    State.removeCareer(careerId);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
 }
 
 function updSlider(key, value, abbr, suffix) {

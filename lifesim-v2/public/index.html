@@ -28,6 +28,11 @@
   <div class="scenario-chips" id="scenario-chips"></div>
 
   <div class="container">
+    <div id="scenario-editors"></div>
+
+    <div id="proj-stats"></div>
+    <div id="proj-breakeven"></div>
+
     <div class="card">
       <div class="chart-hdr">
         <h3 style="margin-bottom:0;">Wealth Projection</h3>
@@ -50,50 +55,9 @@
       <div id="proj-cashflow" style="display:none;"></div>
       <div class="legend" id="proj-legend"></div>
     </div>
-
-    <div id="proj-stats"></div>
-    <div id="proj-breakeven"></div>
-
-    <div id="scenario-editors"></div>
   </div>
 </div>
 
-<!-- ═══════════════ MONTE CARLO SCREEN ═══════════════ -->
-<div id="screen-mc" style="display:none;">
-  <div class="container">
-    <div class="card">
-      <div class="chart-hdr">
-        <h3 style="margin-bottom:0;">Monte Carlo</h3>
-        <span class="micro" id="mc-sim-label">1,000 simulations</span>
-      </div>
-
-      <div id="mc-scenario-btns" class="btn-row" style="margin-bottom:14px;"></div>
-
-      <canvas id="mcChart" height="240"></canvas>
-
-      <div style="margin-top:14px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <label class="micro">Return Volatility</label>
-          <span class="micro num" id="vol-label">12%</span>
-        </div>
-        <input type="range" id="vol-slider" min="2" max="30" value="12"
-          oninput="updateMcVolatility(this.value)"/>
-      </div>
-    </div>
-
-    <div class="card card-alt">
-      <div id="mc-prob-bars"></div>
-    </div>
-
-    <button class="btn btn-ghost" style="margin-top:4px;" onclick="runMonteCarlo()">
-      ▶ Run Simulation
-    </button>
-
-    <div class="disclaimer" style="margin-top:14px;">
-      ⚠️ <span>Monte Carlo uses randomised annual returns with the selected volatility. Past performance does not predict future results.</span>
-    </div>
-  </div>
-</div>
 
 <!-- ═══════════════ SHARE SCREEN ═══════════════ -->
 <div id="screen-share" style="display:none;">
@@ -109,19 +73,26 @@
   </div>
 </div>
 
+<!-- ═══════════════ EXPLORE SCREEN ═══════════════ -->
+<div id="screen-explore" style="display:none;">
+  <div class="container">
+    <div id="explore-content"></div>
+  </div>
+</div>
+
 <!-- ═══════════════ BOTTOM NAV ═══════════════ -->
 <nav class="nav" id="main-nav" style="display:none;">
   <div class="nav-item" id="nav-proj"    onclick="switchTab('proj')">
     <span class="nav-icon">📈</span>Projections
-  </div>
-  <div class="nav-item" id="nav-mc"      onclick="switchTab('mc')">
-    <span class="nav-icon">📊</span>Monte Carlo
   </div>
   <div class="nav-item" id="nav-share"   onclick="switchTab('share')">
     <span class="nav-icon">🔗</span>Share
   </div>
   <div class="nav-item" id="nav-friends" onclick="switchTab('friends')">
     <span class="nav-icon">👥</span>Friends
+  </div>
+  <div class="nav-item" id="nav-explore" onclick="switchTab('explore')">
+    <span class="nav-icon">🧭</span>Explore
   </div>
 </nav>
 
@@ -131,13 +102,13 @@
 <script src="/js/state.js"></script>
 <script src="/js/engine.js"></script>
 <script src="/js/projections.js"></script>
-<script src="/js/montecarlo.js"></script>
 <script src="/js/events.js"></script>
 <script src="/js/assets.js"></script>
 <script src="/js/debts.js"></script>
 <script src="/js/share.js"></script>
 <script src="/js/friends.js"></script>
 <script src="/js/groups.js"></script>
+<script src="/js/explore.js"></script>
 <script src="/js/auth.js"></script>
 <script>
   // Toast utility
@@ -153,5 +124,56 @@
 
 </script>
 <script src="/js/nav.js"></script>
+
+<script>
+  // Falling money animation — only visible on screens wider than 540px
+  (function initMoneyRain() {
+    const SYMBOLS = ['$', '💵', '💰', '💲', '$', '$', '💵'];
+    const COLORS  = ['#00d4aa', '#f0a040', '#a78bfa', '#38bdf8', '#dde3f5'];
+
+    function createPanel(side) {
+      const el = document.createElement('div');
+      el.className = `money-rain-panel ${side}`;
+      document.body.appendChild(el);
+      return el;
+    }
+
+    function spawnSymbol(panel) {
+      const panelW = panel.offsetWidth;
+      if (panelW < 10) return; // don't spawn if panel is too narrow
+
+      const el       = document.createElement('span');
+      el.className   = 'money-symbol';
+      el.textContent = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)];
+      el.style.left     = Math.random() * Math.max(0, panelW - 30) + 'px';
+      el.style.color    = COLORS[Math.floor(Math.random() * COLORS.length)];
+      el.style.fontSize = (14 + Math.random() * 16) + 'px';
+      const duration    = 4 + Math.random() * 8;
+      el.style.animationDuration = duration + 's';
+      el.style.animationDelay   = (Math.random() * -duration) + 's'; // stagger start positions
+      panel.appendChild(el);
+
+      // Remove element after a few cycles to avoid DOM bloat
+      setTimeout(() => el.remove(), (duration + 2) * 1000);
+    }
+
+    const leftPanel  = createPanel('left');
+    const rightPanel = createPanel('right');
+
+    function tick() {
+      if (leftPanel.offsetWidth >= 10) {
+        spawnSymbol(leftPanel);
+        spawnSymbol(rightPanel);
+      }
+    }
+
+    // Spawn a new symbol every ~600ms on each side
+    setInterval(tick, 600);
+    // Seed initial batch so it doesn't look empty on load
+    for (let i = 0; i < 10; i++) {
+      setTimeout(() => { spawnSymbol(leftPanel); spawnSymbol(rightPanel); }, i * 200);
+    }
+  })();
+</script>
 </body>
 </html>

@@ -102,6 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_link   ON comments(share_link_id);
 CREATE INDEX IF NOT EXISTS idx_friends_pair    ON friendships(requester_id, addressee_id);
 
 -- Compatibility migration: add annual_expenses to existing databases (silently ignored if column exists)
+ALTER TABLE users ADD COLUMN recovery_code_hash TEXT DEFAULT NULL;
 ALTER TABLE scenarios ADD COLUMN annual_expenses REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN state_code TEXT NOT NULL DEFAULT 'none';
 ALTER TABLE scenarios ADD COLUMN career_start_age INTEGER NOT NULL DEFAULT 22;
@@ -130,21 +131,31 @@ ALTER TABLE scenarios ADD COLUMN le_utilities_monthly REAL    NOT NULL DEFAULT 0
 ALTER TABLE scenarios ADD COLUMN health_insurance_monthly  REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN health_insurance_coverage TEXT NOT NULL DEFAULT 'single';
 ALTER TABLE scenarios ADD COLUMN health_insurance_plan     TEXT NOT NULL DEFAULT 'standard';
+ALTER TABLE scenarios ADD COLUMN health_insurance_enabled  INTEGER NOT NULL DEFAULT 1;
 ALTER TABLE scenarios ADD COLUMN le_housing_tier       TEXT NOT NULL DEFAULT 'modest';
 ALTER TABLE scenarios ADD COLUMN le_groceries          TEXT NOT NULL DEFAULT 'average';
 ALTER TABLE scenarios ADD COLUMN le_phone_monthly      REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN le_healthcare_monthly REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN le_clothing_monthly   REAL NOT NULL DEFAULT 0;
 
--- School section fields
-ALTER TABLE scenarios ADD COLUMN school_name             TEXT    NOT NULL DEFAULT '';
-ALTER TABLE scenarios ADD COLUMN school_tuition_annual   REAL    NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN school_years            INTEGER NOT NULL DEFAULT 4;
-ALTER TABLE scenarios ADD COLUMN school_start_age        INTEGER;
-ALTER TABLE scenarios ADD COLUMN school_parent_pays      INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN school_scholarship_annual REAL  NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN school_scholarship_years  INTEGER NOT NULL DEFAULT 4;
-ALTER TABLE scenarios ADD COLUMN school_loan_id          INTEGER;
+-- Multiple careers per scenario
+CREATE TABLE IF NOT EXISTS careers (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  scenario_id INTEGER NOT NULL REFERENCES scenarios(id) ON DELETE CASCADE,
+  job_id      TEXT    NOT NULL DEFAULT 'sw_eng',
+  custom_s0   REAL,
+  custom_s35  REAL,
+  custom_s50  REAL,
+  start_age   INTEGER NOT NULL DEFAULT 22,
+  end_age     INTEGER,
+  label       TEXT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_careers_scenario ON careers(scenario_id);
+
+-- Rent period tracking
+ALTER TABLE scenarios ADD COLUMN rent_start_age INTEGER DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN rent_end_age   INTEGER DEFAULT NULL;
 
 -- Groups feature
 CREATE TABLE IF NOT EXISTS groups (

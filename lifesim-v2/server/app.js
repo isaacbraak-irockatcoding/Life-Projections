@@ -11,6 +11,7 @@ const debtsRoutes = require('./routes/debts');
 const shareRoutes = require('./routes/share');
 const friendsRoutes = require('./routes/friends');
 const groupsRoutes  = require('./routes/groups');
+const careersRoutes = require('./routes/careers');
 
 const app = express();
 
@@ -20,6 +21,7 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/api/auth', authRoutes);
 app.use('/api/scenarios', scenarioRoutes);
 app.use('/api/scenarios', eventsRoutes);
+app.use('/api/scenarios', careersRoutes);
 app.use('/api/scenarios', assetsRoutes);
 app.use('/api/scenarios', debtsRoutes);
 app.use('/api', shareRoutes);
