@@ -746,14 +746,17 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
 
-        ${hasLoan ? `
+        ${(() => {
+          const r2 = 6.54 / 100 / 12;
+          const capBalance = r2 > 0 ? Math.round(totalLoan * Math.pow(1 + r2, years * 12 + 6)) : totalLoan;
+          return hasLoan ? `
         <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
           <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
             <span class="micro" style="text-transform:none;letter-spacing:0;">Auto Student Loan</span>
-            <span style="font-size:13px;font-weight:600;color:var(--coral);">${fmtM(Math.round(totalLoan))}</span>
+            <span style="font-size:13px;font-weight:600;color:var(--coral);">${fmtM(capBalance)}</span>
           </div>
           <div style="display:flex;justify-content:space-between;">
-            <span class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;">Repayment starts at age ${loanAge} (10yr @ 6.54%)</span>
+            <span class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;">Repayment starts age ${loanAge + 1} · 10yr @ 6.54% · interest accrues during school</span>
           </div>
         </div>` : parentPays ? `
         <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
@@ -761,7 +764,92 @@ function renderActiveScenarioEditor() {
         </div>` : totalLoan <= 0 && tuition > 0 ? `
         <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
           <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Scholarship covers full tuition — no loan needed</span>
-        </div>` : ''}
+        </div>` : '';
+        })()}
+
+        ${(() => {
+          const gradParentPays = !!s.grad_parent_pays;
+          const gradTuition    = s.grad_tuition_annual || 0;
+          const gradYears      = s.grad_years || 2;
+          const gradStart      = s.grad_start_age ?? (schoolStart + years);
+          const gradSchAnnual  = s.grad_scholarship_annual || 0;
+          const gradSchYears   = s.grad_scholarship_years ?? gradYears;
+
+          let gradTotalLoan = 0;
+          for (let y = 0; y < gradYears; y++) {
+            gradTotalLoan += Math.max(0, gradTuition - (y < gradSchYears ? gradSchAnnual : 0));
+          }
+          const gradLoanAge  = gradStart + gradYears;
+          const gradHasLoan  = !gradParentPays && gradTotalLoan > 0;
+
+          return `
+        <div style="border-top:1px solid var(--border);margin:14px 0 10px;padding-top:12px;">
+          <div class="micro" style="margin-bottom:10px;color:var(--muted2);">🎓 Higher Education</div>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">School Name</label>
+              <input type="text" value="${s.grad_name || ''}" placeholder="e.g. Harvard Law"
+                onchange="updateGradSchoolField('grad_name', this.value)"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Annual Tuition ($)</label>
+              <input type="number" min="0" value="${gradTuition}"
+                onchange="updateGradSchoolField('grad_tuition_annual', +this.value)"/>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Years in Program</label>
+              <input type="number" min="1" max="12" value="${gradYears}"
+                onchange="updateGradSchoolField('grad_years', +this.value)"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Start Age</label>
+              <input type="number" min="14" max="70" value="${gradStart}"
+                onchange="updateGradSchoolField('grad_start_age', +this.value)"/>
+            </div>
+          </div>
+
+          <label class="micro" style="display:block;margin-bottom:6px;margin-top:2px;">Does someone else pay?</label>
+          <div style="display:flex;gap:8px;margin-bottom:14px;">
+            <button class="btn btn-sm${gradParentPays ? ' btn-primary' : ' btn-ghost'}"
+              onclick="updateGradSchoolField('grad_parent_pays', 1)">Yes 🎓 Covered!</button>
+            <button class="btn btn-sm${!gradParentPays ? ' btn-primary' : ' btn-ghost'}"
+              onclick="updateGradSchoolField('grad_parent_pays', 0)">No 💸 Need a loan</button>
+          </div>
+
+          <label class="micro" style="display:block;margin-bottom:6px;">Scholarships / Fellowships</label>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Annual Award ($)</label>
+              <input type="number" min="0" value="${gradSchAnnual}"
+                onchange="updateGradSchoolField('grad_scholarship_annual', +this.value)"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">For # of Years</label>
+              <input type="number" min="1" max="12" value="${gradSchYears}"
+                onchange="updateGradSchoolField('grad_scholarship_years', +this.value)"/>
+            </div>
+          </div>
+
+          ${gradHasLoan ? `
+          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="micro" style="text-transform:none;letter-spacing:0;">Auto Grad Loan</span>
+              <span style="font-size:13px;font-weight:600;color:var(--coral);">${fmtM(Math.round(gradTotalLoan))}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;">
+              <span class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;">Repayment starts at age ${gradLoanAge} (10yr @ 7.05%)</span>
+            </div>
+          </div>` : gradParentPays ? `
+          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
+            <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Tuition covered — no loan needed</span>
+          </div>` : gradTotalLoan <= 0 && gradTuition > 0 ? `
+          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
+            <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Award covers full tuition — no loan needed</span>
+          </div>` : ''}
+        </div>`;
+        })()}
           `;
         })()}
       </div>

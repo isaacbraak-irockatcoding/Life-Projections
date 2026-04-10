@@ -5,7 +5,9 @@
       "Bash(cmd /c \"taskkill /PID 17308 /F\")",
       "Bash(powershell -Command \"Stop-Process -Id \\(Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue\\).OwningProcess -Force -ErrorAction SilentlyContinue\")",
       "Bash(node server/server.js)",
-      "Bash(grep -r \"debt-label\\\\|debt-balance\\\\|debt-rate\\\\|debt-type-select\" /c/Users/Derek/OneDrive/Documents/GitHub/Life-Projections/lifesim-v2 --include=\"*.html\" --include=\"*.js\" ! -path \"*/node_modules/*\")"
+      "Bash(grep -r \"debt-label\\\\|debt-balance\\\\|debt-rate\\\\|debt-type-select\" /c/Users/Derek/OneDrive/Documents/GitHub/Life-Projections/lifesim-v2 --include=\"*.html\" --include=\"*.js\" ! -path \"*/node_modules/*\")",
+      "Bash(grep -n \"updateSchoolField\" \"c:\\\\Users\\\\Derek\\\\OneDrive\\\\Documents\\\\GitHub\\\\Life-Projections\\\\lifesim-v2\\\\public\\\\js\"*.js)",
+      "Bash(node -e ':*)"
     ]
   }
 }

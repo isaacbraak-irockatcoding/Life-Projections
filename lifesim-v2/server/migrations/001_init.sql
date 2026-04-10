@@ -157,6 +157,24 @@ CREATE INDEX IF NOT EXISTS idx_careers_scenario ON careers(scenario_id);
 ALTER TABLE scenarios ADD COLUMN rent_start_age INTEGER DEFAULT NULL;
 ALTER TABLE scenarios ADD COLUMN rent_end_age   INTEGER DEFAULT NULL;
 
+-- School / higher education fields
+ALTER TABLE scenarios ADD COLUMN school_name              TEXT    DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN school_tuition_annual    REAL    NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN school_years             INTEGER NOT NULL DEFAULT 4;
+ALTER TABLE scenarios ADD COLUMN school_start_age         INTEGER DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN school_parent_pays       INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN school_scholarship_annual REAL   NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN school_scholarship_years  INTEGER DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN school_loan_id           INTEGER DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN grad_name                TEXT    DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN grad_tuition_annual      REAL    NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN grad_years               INTEGER NOT NULL DEFAULT 2;
+ALTER TABLE scenarios ADD COLUMN grad_start_age           INTEGER DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN grad_parent_pays         INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN grad_scholarship_annual  REAL    NOT NULL DEFAULT 0;
+ALTER TABLE scenarios ADD COLUMN grad_scholarship_years   INTEGER DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN grad_loan_id             INTEGER DEFAULT NULL;
+
 -- Groups feature
 CREATE TABLE IF NOT EXISTS groups (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
