@@ -448,3 +448,34 @@ input[type=range] {
   color: var(--muted2); border-radius: 10px;
   padding: 2px 8px; font-size: 10px; font-weight: 700;
 }
+
+/* ══════════════════════════════════════
+   FALLING MONEY ANIMATION
+══════════════════════════════════════ */
+.money-rain-panel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: calc((100vw - 540px) / 2);
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.money-rain-panel.left  { left: 0; }
+.money-rain-panel.right { right: 0; }
+
+@keyframes moneyFall {
+  0%   { transform: translateY(-60px) rotate(0deg);   opacity: 0; }
+  10%  { opacity: .55; }
+  90%  { opacity: .45; }
+  100% { transform: translateY(110vh) rotate(360deg); opacity: 0; }
+}
+
+.money-symbol {
+  position: absolute;
+  top: 0;
+  font-size: 22px;
+  animation: moneyFall linear infinite;
+  will-change: transform, opacity;
+  user-select: none;
+}
