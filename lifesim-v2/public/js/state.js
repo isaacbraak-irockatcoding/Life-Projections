@@ -88,6 +88,16 @@ const State = (() => {
   function removeCareer(id) { if (_s.scenario) _s.scenario.careers = (_s.scenario.careers || []).filter(c => c.id !== id); }
   function updateCareer(c)  { if (_s.scenario) { const i = (_s.scenario.careers || []).findIndex(x => x.id === c.id); if (i >= 0) _s.scenario.careers[i] = c; } }
 
+  // Schools
+  function addSchool(sc)     { if (_s.scenario) { if (!_s.scenario.schools) _s.scenario.schools = []; _s.scenario.schools.push(sc); } }
+  function removeSchool(id)  { if (_s.scenario) _s.scenario.schools = (_s.scenario.schools || []).filter(sc => sc.id !== id); }
+  function updateSchool(sc)  { if (_s.scenario) { const i = (_s.scenario.schools || []).findIndex(x => x.id === sc.id); if (i >= 0) _s.scenario.schools[i] = sc; } }
+
+  // Lifestyles
+  function addLifestyle(l)    { if (_s.scenario) { if (!_s.scenario.lifestyles) _s.scenario.lifestyles = []; _s.scenario.lifestyles.push(l); } }
+  function removeLifestyle(id){ if (_s.scenario) _s.scenario.lifestyles = (_s.scenario.lifestyles || []).filter(l => l.id !== id); }
+  function updateLifestyle(l) { if (_s.scenario) { const i = (_s.scenario.lifestyles || []).findIndex(x => x.id === l.id); if (i >= 0) _s.scenario.lifestyles[i] = l; } }
+
   // ── Save ───────────────────────────────────────────────────────────────────
   async function save() {
     if (!_s.scenario || !_s.dirty) return;
@@ -133,6 +143,8 @@ const State = (() => {
     addAsset, removeAsset, updateAsset,
     addDebt, removeDebt, updateDebt,
     addCareer, removeCareer, updateCareer,
+    addSchool, removeSchool, updateSchool,
+    addLifestyle, removeLifestyle, updateLifestyle,
     save, isDirty,
     setMcPath, getMcPath,
     setMcVolatility, getMcVolatility,

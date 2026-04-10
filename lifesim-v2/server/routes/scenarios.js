@@ -16,6 +16,8 @@ function fullScenario(id) {
   s.debts   = db.prepare('SELECT * FROM debts   WHERE scenario_id = ? ORDER BY id').all(id);
   s.events  = db.prepare('SELECT * FROM events  WHERE scenario_id = ? ORDER BY at_age').all(id);
   s.careers = db.prepare('SELECT * FROM careers WHERE scenario_id = ? ORDER BY start_age').all(id);
+  s.schools     = db.prepare('SELECT * FROM schools     WHERE scenario_id = ? ORDER BY start_age').all(id);
+  s.lifestyles  = db.prepare('SELECT * FROM lifestyles  WHERE scenario_id = ? ORDER BY start_age').all(id);
   return s;
 }
 

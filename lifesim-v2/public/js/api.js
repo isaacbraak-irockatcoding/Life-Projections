@@ -64,6 +64,14 @@ const api = (() => {
     updateDebt:   (sid, did, data) => request('PATCH', `/api/scenarios/${sid}/debts/${did}`, data),
     deleteDebt:   (sid, did)  => request('DELETE', `/api/scenarios/${sid}/debts/${did}`),
 
+    createLifestyle: (sid, data)       => request('POST',   `/api/scenarios/${sid}/lifestyles`, data),
+    updateLifestyle: (sid, lid, data)  => request('PATCH',  `/api/scenarios/${sid}/lifestyles/${lid}`, data),
+    deleteLifestyle: (sid, lid)        => request('DELETE',  `/api/scenarios/${sid}/lifestyles/${lid}`),
+
+    createSchool: (sid, data)        => request('POST',   `/api/scenarios/${sid}/schools`, data),
+    updateSchool: (sid, scid, data)  => request('PATCH',  `/api/scenarios/${sid}/schools/${scid}`, data),
+    deleteSchool: (sid, scid)        => request('DELETE',  `/api/scenarios/${sid}/schools/${scid}`),
+
     createCareer: (sid, data) => request('POST',   `/api/scenarios/${sid}/careers`, data),
     updateCareer: (sid, cid, data) => request('PATCH', `/api/scenarios/${sid}/careers/${cid}`, data),
     deleteCareer: (sid, cid)  => request('DELETE', `/api/scenarios/${sid}/careers/${cid}`),

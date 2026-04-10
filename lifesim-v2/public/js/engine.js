@@ -20,6 +20,14 @@ function getCareerAtAge(careers, age) {
     .sort((a, b) => b.start_age - a.start_age)[0] || null;
 }
 
+// Returns the active lifestyle record for a given age from the lifestyles array.
+// Active = highest start_age that is <= the given age.
+function getLifestyleAtAge(lifestyles, age) {
+  return (lifestyles || [])
+    .filter(l => age >= l.start_age)
+    .sort((a, b) => b.start_age - a.start_age)[0] || null;
+}
+
 // Returns total annual debt payments still owed at a given age
 // Offsets amortization by each debt's individual start_age
 function getDebtPayments(debts, age, scenarioStartAge) {
@@ -319,8 +327,18 @@ function calculatePath(scenario) {
 
   const startAge          = scenario.start_age || 25;
   const careerStartAge    = scenario.career_start_age ?? 22;
-  const baseLivingTotal   = (scenario.annual_expenses || 0) + calcLivingExpenses(scenario);
-  const baseHousingCost   = calcHousingCost(scenario);
+
+  // Per-year tuition map: loan cash covers tuition each school year (net 0 to savings pool)
+  const tuitionByAge = {};
+  for (const sc of (scenario.schools || [])) {
+    if (sc.parent_pays) continue;
+    for (let y = 0; y < (sc.years || 0); y++) {
+      const scAge  = sc.start_age + y;
+      const annual = Math.max(0,
+        (sc.tuition_annual || 0) - (y < (sc.scholarship_years || 0) ? (sc.scholarship_annual || 0) : 0));
+      if (annual > 0) tuitionByAge[scAge] = (tuitionByAge[scAge] || 0) + annual;
+    }
+  }
 
   // Individual asset pools — each grows at its own rate with its own annual contribution
   const assetPools = (scenario.assets || [])
@@ -359,13 +377,9 @@ function calculatePath(scenario) {
       }
     });
 
-    // Loan disbursements: student loans starting this year inject cash into the pool
-    // (the liability and the cash received cancel out, keeping net worth neutral at loan start)
-    const loanDisbursements = (scenario.debts || [])
-      .filter(d => d.type === 'student_loan' && (d.start_age || startAge) === age)
-      .map(d => ({ label: d.label || 'Student Loan', amount: d.balance || 0 }));
-    const totalLoanDisbursement = loanDisbursements.reduce((s, d) => s + d.amount, 0);
-    savingsPool += totalLoanDisbursement;
+    // Tuition: loan disbursement and tuition expense cancel each year (net 0 to savingsPool)
+    // Both show in the cashflow table for transparency but don't affect the savings pool
+    const tuitionThisYear = tuitionByAge[age] || 0;
 
     // Net worth snapshot (before this year's growth) — used for retirement calculation
     const assetTotal    = assetPools.reduce((s, a) => s + a.value, 0);
@@ -383,10 +397,14 @@ function calculatePath(scenario) {
     const debtInterestBreakdown = getDebtInterestBreakdown(scenario.debts, age, startAge);
     const interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
 
-    // Living expenses for this year: inflate 3%/yr, apply housing cost only while renting
-    const yearsElapsed   = age - startAge;
-    const isRenting      = age >= rentStartAge && age < rentEndAge;
-    const livingExpenses = (baseLivingTotal - (isRenting ? 0 : baseHousingCost)) * Math.pow(1.03, yearsElapsed);
+    // Living expenses for this year: use active lifestyle period (falls back to flat scenario fields)
+    const yearsElapsed    = age - startAge;
+    const isRenting       = age >= rentStartAge && age < rentEndAge;
+    const activeLifestyle = getLifestyleAtAge(scenario.lifestyles, age);
+    const lsSource        = activeLifestyle || scenario;
+    const yearLivingTotal = (lsSource.annual_expenses || 0) + calcLivingExpenses(lsSource);
+    const yearHousingCost = calcHousingCost(lsSource);
+    const livingExpenses  = (yearLivingTotal - (isRenting ? 0 : yearHousingCost)) * Math.pow(1.03, yearsElapsed);
 
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;
@@ -412,8 +430,8 @@ function calculatePath(scenario) {
       const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code, calcHealthInsuranceAnnual(scenario)) : 0;
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
 
-      rowIncome   = Math.round(afterTax + ev.spouseIncome);
-      rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual + livingExpenses);
+      rowIncome   = Math.round(afterTax + ev.spouseIncome + tuitionThisYear);
+      rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual + livingExpenses + tuitionThisYear);
 
       // Compound each asset at its own rate + add its annual contribution
       assetPools.forEach(a => {
@@ -498,8 +516,7 @@ function calculatePath(scenario) {
       assetInterestIncome,
       poolInterestIncome,
       livingExpenses:        isRetired ? 0 : Math.round(livingExpenses),
-      loanDisbursements,
-      totalLoanDisbursement: Math.round(totalLoanDisbursement),
+      tuitionDisbursement:   isRetired ? 0 : tuitionThisYear,
     });
   });
 

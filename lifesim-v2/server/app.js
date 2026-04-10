@@ -12,6 +12,8 @@ const shareRoutes = require('./routes/share');
 const friendsRoutes = require('./routes/friends');
 const groupsRoutes  = require('./routes/groups');
 const careersRoutes = require('./routes/careers');
+const schoolsRoutes     = require('./routes/schools');
+const lifestylesRoutes  = require('./routes/lifestyles');
 
 const app = express();
 
@@ -22,6 +24,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/scenarios', scenarioRoutes);
 app.use('/api/scenarios', eventsRoutes);
 app.use('/api/scenarios', careersRoutes);
+app.use('/api/scenarios', schoolsRoutes);
+app.use('/api/scenarios', lifestylesRoutes);
 app.use('/api/scenarios', assetsRoutes);
 app.use('/api/scenarios', debtsRoutes);
 app.use('/api', shareRoutes);

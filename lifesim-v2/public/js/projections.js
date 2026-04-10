@@ -146,6 +146,7 @@ function renderScenarioChips() {
 async function selectScenarioChip(id) {
   if (id === State.getActiveId()) return;
   try {
+    await State.save(); // persist any unsaved changes before switching
     const s = await State.loadScenario(id);
     _scenarioCache[id] = s;
     renderProjTab();
@@ -412,12 +413,12 @@ function renderCashflowSummary() {
     const capitalOpen   = !!_cashflowExpanded[`${s.id}-cf-capital`];
 
     const tableRows = rows.map(r => {
-      const loanDisbursementTotal = (r.loanDisbursements || []).reduce((s, d) => s + d.amount, 0);
-      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : ((r.income || 0) + (r.spouseIncome || 0) + loanDisbursementTotal);
+      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : ((r.income || 0) + (r.spouseIncome || 0) + (r.tuitionDisbursement || 0));
       const totalRecurring = (r.interestExpense || 0)
                            + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0)
                            + (r.debtPrincipalPayments || 0)
-                           + (r.livingExpenses || 0);
+                           + (r.livingExpenses || 0)
+                           + (r.tuitionDisbursement || 0);
       const totalCapital   = (r.eventOneTimeItems || []).reduce((s, i) => s + (i.amount || 0), 0)
                            + (r.totalAssetContribs || 0);
       const netFlow        = totalCashIn - totalRecurring - totalCapital;
@@ -449,9 +450,9 @@ function renderCashflowSummary() {
           (r.spouseIncomeItems || []).forEach(i => {
             html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-pos">${fmtM(i.amount)}</td></tr>`;
           });
-          (r.loanDisbursements || []).forEach(d => {
-            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${d.label} — Disbursement</td><td class="tbl-pos">${fmtM(d.amount)}</td></tr>`;
-          });
+          if ((r.tuitionDisbursement || 0) > 0) {
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Tuition — Loan</td><td class="tbl-pos">${fmtM(r.tuitionDisbursement)}</td></tr>`;
+          }
         }
       }
 
@@ -475,7 +476,10 @@ function renderCashflowSummary() {
         if ((r.livingExpenses || 0) > 0) {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Living Expenses</td><td class="tbl-neg">${fmtM(r.livingExpenses)}</td></tr>`;
         }
-        if (!((r.debtInterestBreakdown || []).length) && !(r.debtPrincipalPayments > 0) && !((r.eventAnnualItems || []).length) && !((r.livingExpenses || 0) > 0)) {
+        if ((r.tuitionDisbursement || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Tuition Payment</td><td class="tbl-neg">${fmtM(r.tuitionDisbursement)}</td></tr>`;
+        }
+        if (!((r.debtInterestBreakdown || []).length) && !(r.debtPrincipalPayments > 0) && !((r.eventAnnualItems || []).length) && !((r.livingExpenses || 0) > 0) && !((r.tuitionDisbursement || 0) > 0)) {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
         }
       }
@@ -680,177 +684,97 @@ function renderActiveScenarioEditor() {
       </div>
 
       <!-- ── School ── -->
-      ${secHdr('school', 'School')}
+      ${secHdr('school', 'School', (s.schools||[]).length || '')}
       <div class="sec-body" style="display:${_openSections.school ? '' : 'none'};">
         ${(() => {
-          const schoolStart = s.school_start_age ?? s.start_age;
-          const parentPays  = !!s.school_parent_pays;
-          const tuition     = s.school_tuition_annual || 0;
-          const years       = s.school_years || 4;
-          const schAnnual   = s.school_scholarship_annual || 0;
-          const schYears    = s.school_scholarship_years ?? years;
-
-          // Compute total net loan
-          let totalLoan = 0;
-          for (let y = 0; y < years; y++) {
-            totalLoan += Math.max(0, tuition - (y < schYears ? schAnnual : 0));
-          }
-          const loanAge  = schoolStart + years;
-          const hasLoan  = !parentPays && totalLoan > 0;
-
+          const schools = (s.schools || []).slice().sort((a, b) => a.start_age - b.start_age);
           return `
-        <div class="field-row">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">School Name</label>
-            <input type="text" value="${s.school_name || ''}" placeholder="e.g. State University"
-              onchange="updateSchoolField('school_name', this.value)"/>
-          </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Annual Tuition ($)</label>
-            <input type="number" min="0" value="${tuition}"
-              onchange="updateSchoolField('school_tuition_annual', +this.value)"/>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Years in School</label>
-            <input type="number" min="1" max="12" value="${years}"
-              onchange="updateSchoolField('school_years', +this.value)"/>
-          </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">School Start Age</label>
-            <input type="number" min="14" max="60" value="${schoolStart}"
-              onchange="updateSchoolField('school_start_age', +this.value)"/>
-          </div>
-        </div>
-
-        <label class="micro" style="display:block;margin-bottom:6px;margin-top:2px;">Does mommy or daddy pay for school?</label>
-        <div style="display:flex;gap:8px;margin-bottom:14px;">
-          <button class="btn btn-sm${parentPays ? ' btn-primary' : ' btn-ghost'}"
-            onclick="updateSchoolField('school_parent_pays', 1)">Yes 🎓 Free tuition!</button>
-          <button class="btn btn-sm${!parentPays ? ' btn-primary' : ' btn-ghost'}"
-            onclick="updateSchoolField('school_parent_pays', 0)">No 💸 Need a loan</button>
-        </div>
-
-        <label class="micro" style="display:block;margin-bottom:6px;">Scholarships</label>
-        <div class="field-row">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Annual Scholarship ($)</label>
-            <input type="number" min="0" value="${schAnnual}"
-              onchange="updateSchoolField('school_scholarship_annual', +this.value)"/>
-          </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">For # of Years</label>
-            <input type="number" min="1" max="12" value="${schYears}"
-              onchange="updateSchoolField('school_scholarship_years', +this.value)"/>
-          </div>
-        </div>
-
-        ${(() => {
-          const r2 = 6.54 / 100 / 12;
-          const capBalance = r2 > 0 ? Math.round(totalLoan * Math.pow(1 + r2, years * 12 + 6)) : totalLoan;
-          return hasLoan ? `
-        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span class="micro" style="text-transform:none;letter-spacing:0;">Auto Student Loan</span>
-            <span style="font-size:13px;font-weight:600;color:var(--coral);">${fmtM(capBalance)}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;">
-            <span class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;">Repayment starts age ${loanAge + 1} · 10yr @ 6.54% · interest accrues during school</span>
-          </div>
-        </div>` : parentPays ? `
-        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
-          <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Tuition covered — no loan needed</span>
-        </div>` : totalLoan <= 0 && tuition > 0 ? `
-        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
-          <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Scholarship covers full tuition — no loan needed</span>
-        </div>` : '';
-        })()}
-
-        ${(() => {
-          const gradParentPays = !!s.grad_parent_pays;
-          const gradTuition    = s.grad_tuition_annual || 0;
-          const gradYears      = s.grad_years || 2;
-          const gradStart      = s.grad_start_age ?? (schoolStart + years);
-          const gradSchAnnual  = s.grad_scholarship_annual || 0;
-          const gradSchYears   = s.grad_scholarship_years ?? gradYears;
-
-          let gradTotalLoan = 0;
-          for (let y = 0; y < gradYears; y++) {
-            gradTotalLoan += Math.max(0, gradTuition - (y < gradSchYears ? gradSchAnnual : 0));
+        ${schools.length === 0 ? `<p class="micro" style="color:var(--muted2);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Add schools below. Each entry tracks tuition and auto-creates a student loan.</p>` : ''}
+        ${schools.map((sc, i) => {
+          const RATE = sc.type === 'undergrad' ? 6.54 : 7.05;
+          const r2   = RATE / 100 / 12;
+          let rawLoan = 0;
+          for (let y = 0; y < sc.years; y++) {
+            rawLoan += Math.max(0, (sc.tuition_annual||0) - (y < (sc.scholarship_years||0) ? (sc.scholarship_annual||0) : 0));
           }
-          const gradLoanAge  = gradStart + gradYears;
-          const gradHasLoan  = !gradParentPays && gradTotalLoan > 0;
+          const capBalance = r2 > 0 ? Math.round(rawLoan * Math.pow(1 + r2, sc.years * 12 + 6)) : rawLoan;
+          const repayAge   = sc.start_age + sc.years + 1;
+          const hasLoan    = !sc.parent_pays && rawLoan > 0;
 
-          return `
-        <div style="border-top:1px solid var(--border);margin:14px 0 10px;padding-top:12px;">
-          <div class="micro" style="margin-bottom:10px;color:var(--muted2);">🎓 Higher Education</div>
-          <div class="field-row">
-            <div class="field">
-              <label class="micro" style="display:block;margin-bottom:5px;">School Name</label>
-              <input type="text" value="${s.grad_name || ''}" placeholder="e.g. Harvard Law"
-                onchange="updateGradSchoolField('grad_name', this.value)"/>
+          return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">${sc.name || 'School ' + (i+1)}</span>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteSchool(${sc.id})">✕</button>
             </div>
-            <div class="field">
-              <label class="micro" style="display:block;margin-bottom:5px;">Annual Tuition ($)</label>
-              <input type="number" min="0" value="${gradTuition}"
-                onchange="updateGradSchoolField('grad_tuition_annual', +this.value)"/>
+            <div class="field-row">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
+                <select onchange="updateSchool(${sc.id},{type:this.value})">
+                  <option value="undergrad"${sc.type==='undergrad'?' selected':''}>Undergrad</option>
+                  <option value="grad"${sc.type==='grad'?' selected':''}>Graduate</option>
+                  <option value="professional"${sc.type==='professional'?' selected':''}>Professional (MBA/JD/MD)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">School Name</label>
+                <input type="text" value="${sc.name||''}" placeholder="e.g. State University"
+                  onchange="updateSchool(${sc.id},{name:this.value})"/>
+              </div>
             </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label class="micro" style="display:block;margin-bottom:5px;">Years in Program</label>
-              <input type="number" min="1" max="12" value="${gradYears}"
-                onchange="updateGradSchoolField('grad_years', +this.value)"/>
+            <div class="field-row">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Annual Tuition ($)</label>
+                <input type="number" min="0" value="${sc.tuition_annual||0}"
+                  onchange="updateSchool(${sc.id},{tuition_annual:+this.value})"/>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Years</label>
+                <input type="number" min="1" max="12" value="${sc.years||4}"
+                  onchange="updateSchool(${sc.id},{years:+this.value})"/>
+              </div>
             </div>
             <div class="field">
               <label class="micro" style="display:block;margin-bottom:5px;">Start Age</label>
-              <input type="number" min="14" max="70" value="${gradStart}"
-                onchange="updateGradSchoolField('grad_start_age', +this.value)"/>
+              <input type="number" min="14" max="70" value="${sc.start_age||18}"
+                onchange="updateSchool(${sc.id},{start_age:+this.value})"/>
             </div>
-          </div>
-
-          <label class="micro" style="display:block;margin-bottom:6px;margin-top:2px;">Does someone else pay?</label>
-          <div style="display:flex;gap:8px;margin-bottom:14px;">
-            <button class="btn btn-sm${gradParentPays ? ' btn-primary' : ' btn-ghost'}"
-              onclick="updateGradSchoolField('grad_parent_pays', 1)">Yes 🎓 Covered!</button>
-            <button class="btn btn-sm${!gradParentPays ? ' btn-primary' : ' btn-ghost'}"
-              onclick="updateGradSchoolField('grad_parent_pays', 0)">No 💸 Need a loan</button>
-          </div>
-
-          <label class="micro" style="display:block;margin-bottom:6px;">Scholarships / Fellowships</label>
-          <div class="field-row">
-            <div class="field">
-              <label class="micro" style="display:block;margin-bottom:5px;">Annual Award ($)</label>
-              <input type="number" min="0" value="${gradSchAnnual}"
-                onchange="updateGradSchoolField('grad_scholarship_annual', +this.value)"/>
+            <label class="micro" style="display:block;margin-bottom:6px;margin-top:8px;">Does someone else pay tuition?</label>
+            <div style="display:flex;gap:8px;margin-bottom:10px;">
+              <button class="btn btn-sm${sc.parent_pays?' btn-primary':' btn-ghost'}"
+                onclick="updateSchool(${sc.id},{parent_pays:1})">Yes 🎓 Covered!</button>
+              <button class="btn btn-sm${!sc.parent_pays?' btn-primary':' btn-ghost'}"
+                onclick="updateSchool(${sc.id},{parent_pays:0})">No 💸 Need a loan</button>
             </div>
-            <div class="field">
-              <label class="micro" style="display:block;margin-bottom:5px;">For # of Years</label>
-              <input type="number" min="1" max="12" value="${gradSchYears}"
-                onchange="updateGradSchoolField('grad_scholarship_years', +this.value)"/>
+            <label class="micro" style="display:block;margin-bottom:6px;">Scholarships / Aid</label>
+            <div class="field-row">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Annual Award ($)</label>
+                <input type="number" min="0" value="${sc.scholarship_annual||0}"
+                  onchange="updateSchool(${sc.id},{scholarship_annual:+this.value})"/>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">For # of Years</label>
+                <input type="number" min="0" max="12" value="${sc.scholarship_years||0}"
+                  onchange="updateSchool(${sc.id},{scholarship_years:+this.value})"/>
+              </div>
             </div>
-          </div>
-
-          ${gradHasLoan ? `
-          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
-            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-              <span class="micro" style="text-transform:none;letter-spacing:0;">Auto Grad Loan</span>
-              <span style="font-size:13px;font-weight:600;color:var(--coral);">${fmtM(Math.round(gradTotalLoan))}</span>
-            </div>
-            <div style="display:flex;justify-content:space-between;">
-              <span class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;">Repayment starts at age ${gradLoanAge} (10yr @ 7.05%)</span>
-            </div>
-          </div>` : gradParentPays ? `
-          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
-            <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Tuition covered — no loan needed</span>
-          </div>` : gradTotalLoan <= 0 && gradTuition > 0 ? `
-          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-top:4px;">
-            <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Award covers full tuition — no loan needed</span>
-          </div>` : ''}
-        </div>`;
-        })()}
-          `;
+            ${hasLoan ? `
+            <div style="background:var(--bg3,var(--bg));border-radius:6px;padding:8px 10px;margin-top:6px;">
+              <div style="display:flex;justify-content:space-between;margin-bottom:2px;">
+                <span class="micro" style="text-transform:none;letter-spacing:0;">Auto Student Loan</span>
+                <span style="font-size:12px;font-weight:600;color:var(--coral);">${fmtM(capBalance)}</span>
+              </div>
+              <span class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;">Repayment age ${repayAge} · 10yr @ ${RATE}% · interest accrues during school</span>
+            </div>` : sc.parent_pays ? `
+            <div style="background:var(--bg3,var(--bg));border-radius:6px;padding:8px 10px;margin-top:6px;">
+              <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Tuition covered — no loan needed</span>
+            </div>` : rawLoan <= 0 && (sc.tuition_annual||0) > 0 ? `
+            <div style="background:var(--bg3,var(--bg));border-radius:6px;padding:8px 10px;margin-top:6px;">
+              <span class="micro" style="color:var(--accent);text-transform:none;letter-spacing:0;">Aid covers full tuition — no loan needed</span>
+            </div>` : ''}
+          </div>`;
+        }).join('')}
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:16px;" onclick="addSchool()">+ Add School</button>`;
         })()}
       </div>
 
@@ -1142,12 +1066,11 @@ function renderActiveScenarioEditor() {
         <div id="event-list"></div>
       </div>
 
-      <!-- ── Living Expenses ── -->
-      ${secHdr('living', 'Living Expenses')}
+      <!-- ── Lifestyle ── -->
+      ${secHdr('living', 'Lifestyle', (s.lifestyles||[]).length || '')}
       <div class="sec-body" style="display:${_openSections.living ? '' : 'none'};">
 
-        <!-- Housing -->
-        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Housing / Rent</p>
+        <!-- Rent timing — scenario-level -->
         <div class="field-row" style="margin-bottom:10px;">
           <div class="field">
             <label class="micro" style="display:block;margin-bottom:5px;">Rent Start Age</label>
@@ -1162,98 +1085,103 @@ function renderActiveScenarioEditor() {
           </div>
         </div>
         <p class="micro" style="color:var(--muted2);margin-bottom:12px;text-transform:none;letter-spacing:0;font-size:11px;">
-          Rent stops automatically when you add a House Purchase life event. Set End Age to override (e.g., moved back home).
+          Rent stops automatically when you add a House Purchase life event. Set End Age to override.
         </p>
-        <div class="field" style="margin-bottom:10px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">How nice of a place do you rent?</label>
-          <select onchange="onLivingChange('le_housing_tier', this.value)">
-            <option value="shared"      ${(s.le_housing_tier||'modest')==='shared'      ? 'selected' : ''}>Shared / roommates (~$700/mo)</option>
-            <option value="basic"       ${(s.le_housing_tier||'modest')==='basic'       ? 'selected' : ''}>Basic studio (~$1,000/mo)</option>
-            <option value="modest"      ${(s.le_housing_tier||'modest')==='modest'      ? 'selected' : ''}>Modest 1BR (~$1,400/mo)</option>
-            <option value="comfortable" ${(s.le_housing_tier||'modest')==='comfortable' ? 'selected' : ''}>Comfortable (~$2,000/mo)</option>
-            <option value="upscale"     ${(s.le_housing_tier||'modest')==='upscale'     ? 'selected' : ''}>Upscale (~$3,000/mo)</option>
-            <option value="luxury"      ${(s.le_housing_tier||'modest')==='luxury'      ? 'selected' : ''}>Luxury (~$5,000/mo)</option>
-          </select>
-        </div>
-        <div class="field" style="margin-bottom:16px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">Monthly Utilities (electric, gas, water) ($)</label>
-          <input type="number" placeholder="150" value="${s.le_utilities_monthly || ''}"
-            onchange="onLivingChange('le_utilities_monthly', +this.value)"/>
-        </div>
 
-        <!-- Food -->
-        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Food</p>
-        <div class="field" style="margin-bottom:10px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">Groceries</label>
-          <select onchange="onLivingChange('le_groceries', this.value)">
-            <option value="basic"    ${(s.le_groceries||'average')==='basic'    ? 'selected' : ''}>Basic (~$2,400/yr)</option>
-            <option value="average"  ${(s.le_groceries||'average')==='average'  ? 'selected' : ''}>Average (~$3,600/yr)</option>
-            <option value="generous" ${(s.le_groceries||'average')==='generous' ? 'selected' : ''}>Well-stocked (~$5,400/yr)</option>
-          </select>
-        </div>
-        <div class="field" style="margin-bottom:16px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">How often do you eat out?</label>
-          <select onchange="onLivingChange('le_dining', this.value)">
-            <option value="never"      ${(s.le_dining||'never')==='never'      ? 'selected' : ''}>Never (~$0/yr)</option>
-            <option value="sometimes"  ${(s.le_dining||'never')==='sometimes'  ? 'selected' : ''}>Sometimes (~$1,200/yr)</option>
-            <option value="often"      ${(s.le_dining||'never')==='often'      ? 'selected' : ''}>Often (~$3,600/yr)</option>
-            <option value="frequently" ${(s.le_dining||'never')==='frequently' ? 'selected' : ''}>Frequently (~$7,200/yr)</option>
-          </select>
-        </div>
-
-        <!-- Transportation -->
-        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Transportation</p>
-        <div class="field-row" style="margin-bottom:16px;align-items:center;">
-          <label class="micro" style="flex:1;text-transform:none;letter-spacing:0;">Do you drive? (~$3,600/yr gas + insurance)</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" ${s.le_has_car ? 'checked' : ''}
-              onchange="onLivingChange('le_has_car', this.checked ? 1 : 0)"/>
-            <span class="micro" style="text-transform:none;">Yes</span>
-          </label>
-        </div>
-
-        <!-- Pets -->
-        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Pets</p>
-        <div class="field-row" style="margin-bottom:10px;align-items:center;">
-          <label class="micro" style="flex:1;text-transform:none;letter-spacing:0;">Do you have pets?</label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" ${(s.le_pet_count || 0) > 0 ? 'checked' : ''}
-              onchange="onLivingChange('le_pet_count', this.checked ? 1 : 0)"/>
-            <span class="micro" style="text-transform:none;">Yes</span>
-          </label>
-        </div>
-        ${(s.le_pet_count || 0) > 0 ? `
-        <div class="field" style="margin-bottom:10px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">How many? (~$1,500/pet/yr)</label>
-          <input type="number" min="1" max="20" value="${s.le_pet_count || 1}"
-            onchange="onLivingChange('le_pet_count', +this.value)"/>
-        </div>` : ''}
-        <div style="margin-bottom:16px;"></div>
-
-        <!-- Other -->
-        <p class="micro" style="color:var(--muted2);margin-bottom:6px;text-transform:none;letter-spacing:0;">Other Monthly Expenses</p>
-        <div class="field" style="margin-bottom:10px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">Phone / mobile plan ($)</label>
-          <input type="number" placeholder="80" value="${s.le_phone_monthly || ''}"
-            onchange="onLivingChange('le_phone_monthly', +this.value)"/>
-        </div>
-        <div class="field" style="margin-bottom:10px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">Healthcare out-of-pocket ($)</label>
-          <input type="number" placeholder="150" value="${s.le_healthcare_monthly || ''}"
-            onchange="onLivingChange('le_healthcare_monthly', +this.value)"/>
-        </div>
-        <div class="field" style="margin-bottom:16px;">
-          <label class="micro" style="display:block;margin-bottom:5px;">Clothing &amp; personal care ($)</label>
-          <input type="number" placeholder="100" value="${s.le_clothing_monthly || ''}"
-            onchange="onLivingChange('le_clothing_monthly', +this.value)"/>
-        </div>
-
-        <!-- Summary -->
-        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">
-          <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Annual Living Expenses</span>
-          <span style="font-size:15px;font-weight:700;color:var(--accent);">${fmtM(calcLivingExpensesUI(s))}</span>
-        </div>
-        <p class="micro" style="color:var(--muted2);text-transform:none;letter-spacing:0;font-size:11px;margin-bottom:4px;">Deducted from income each year before savings. Grows 3%/yr with inflation. Rent stops if you purchase a home.</p>
+        <!-- Lifestyle period cards -->
+        ${(() => {
+          const lifestyles = (s.lifestyles || []).slice().sort((a, b) => a.start_age - b.start_age);
+          return `
+        ${lifestyles.length === 0 ? `<p class="micro" style="color:var(--muted2);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Add lifestyle periods below. Each period sets your living expenses from that age onward.</p>` : ''}
+        ${lifestyles.map((l, i) => `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">Period ${i+1} — Age ${l.start_age}+</span>
+              <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteLifestyle(${l.id})">✕</button>
+            </div>
+            <div class="field" style="margin-bottom:10px;">
+              <label class="micro" style="display:block;margin-bottom:5px;">Start Age</label>
+              <input type="number" min="14" max="80" value="${l.start_age}"
+                onchange="updateLifestyle(${l.id},{start_age:+this.value})"/>
+            </div>
+            <div class="field" style="margin-bottom:10px;">
+              <label class="micro" style="display:block;margin-bottom:5px;">Housing Tier</label>
+              <select onchange="updateLifestyle(${l.id},{le_housing_tier:this.value})">
+                <option value="shared"      ${(l.le_housing_tier||'modest')==='shared'      ? 'selected':''}>Shared / roommates (~$700/mo)</option>
+                <option value="basic"       ${(l.le_housing_tier||'modest')==='basic'       ? 'selected':''}>Basic studio (~$1,000/mo)</option>
+                <option value="modest"      ${(l.le_housing_tier||'modest')==='modest'      ? 'selected':''}>Modest 1BR (~$1,400/mo)</option>
+                <option value="comfortable" ${(l.le_housing_tier||'modest')==='comfortable' ? 'selected':''}>Comfortable (~$2,000/mo)</option>
+                <option value="upscale"     ${(l.le_housing_tier||'modest')==='upscale'     ? 'selected':''}>Upscale (~$3,000/mo)</option>
+                <option value="luxury"      ${(l.le_housing_tier||'modest')==='luxury'      ? 'selected':''}>Luxury (~$5,000/mo)</option>
+              </select>
+            </div>
+            <div class="field-row" style="margin-bottom:10px;">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Monthly Utilities ($)</label>
+                <input type="number" placeholder="150" value="${l.le_utilities_monthly||''}"
+                  onchange="updateLifestyle(${l.id},{le_utilities_monthly:+this.value})"/>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Phone ($)</label>
+                <input type="number" placeholder="80" value="${l.le_phone_monthly||''}"
+                  onchange="updateLifestyle(${l.id},{le_phone_monthly:+this.value})"/>
+              </div>
+            </div>
+            <div class="field" style="margin-bottom:10px;">
+              <label class="micro" style="display:block;margin-bottom:5px;">Groceries</label>
+              <select onchange="updateLifestyle(${l.id},{le_groceries:this.value})">
+                <option value="basic"    ${(l.le_groceries||'average')==='basic'    ? 'selected':''}>Basic (~$2,400/yr)</option>
+                <option value="average"  ${(l.le_groceries||'average')==='average'  ? 'selected':''}>Average (~$3,600/yr)</option>
+                <option value="generous" ${(l.le_groceries||'average')==='generous' ? 'selected':''}>Well-stocked (~$5,400/yr)</option>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom:10px;">
+              <label class="micro" style="display:block;margin-bottom:5px;">Dining Out</label>
+              <select onchange="updateLifestyle(${l.id},{le_dining:this.value})">
+                <option value="never"      ${(l.le_dining||'never')==='never'      ? 'selected':''}>Never (~$0/yr)</option>
+                <option value="sometimes"  ${(l.le_dining||'never')==='sometimes'  ? 'selected':''}>Sometimes (~$1,200/yr)</option>
+                <option value="often"      ${(l.le_dining||'never')==='often'      ? 'selected':''}>Often (~$3,600/yr)</option>
+                <option value="frequently" ${(l.le_dining||'never')==='frequently' ? 'selected':''}>Frequently (~$7,200/yr)</option>
+              </select>
+            </div>
+            <div class="field-row" style="margin-bottom:10px;align-items:center;">
+              <label class="micro" style="flex:1;text-transform:none;letter-spacing:0;">Car (~$3,600/yr)</label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+                <input type="checkbox" ${l.le_has_car ? 'checked':''}
+                  onchange="updateLifestyle(${l.id},{le_has_car:this.checked?1:0})"/>
+                <span class="micro" style="text-transform:none;">Yes</span>
+              </label>
+            </div>
+            <div class="field-row" style="margin-bottom:10px;">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Pets (~$1,500/pet)</label>
+                <input type="number" min="0" max="20" placeholder="0" value="${l.le_pet_count||0}"
+                  onchange="updateLifestyle(${l.id},{le_pet_count:+this.value})"/>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Healthcare OOP ($)</label>
+                <input type="number" placeholder="150" value="${l.le_healthcare_monthly||''}"
+                  onchange="updateLifestyle(${l.id},{le_healthcare_monthly:+this.value})"/>
+              </div>
+            </div>
+            <div class="field-row" style="margin-bottom:10px;">
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Clothing ($)</label>
+                <input type="number" placeholder="100" value="${l.le_clothing_monthly||''}"
+                  onchange="updateLifestyle(${l.id},{le_clothing_monthly:+this.value})"/>
+              </div>
+              <div class="field">
+                <label class="micro" style="display:block;margin-bottom:5px;">Other Annual ($)</label>
+                <input type="number" placeholder="0" value="${l.annual_expenses||''}"
+                  onchange="updateLifestyle(${l.id},{annual_expenses:+this.value})"/>
+              </div>
+            </div>
+            <div style="background:var(--bg3,var(--bg));border-radius:6px;padding:8px 10px;margin-top:4px;display:flex;justify-content:space-between;align-items:center;">
+              <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Annual Living</span>
+              <span style="font-size:12px;font-weight:600;color:var(--accent);">${fmtM((l.annual_expenses||0) + calcLivingExpensesUI(l))}</span>
+            </div>
+          </div>`).join('')}
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:16px;" onclick="addLifestyle()">+ Add Lifestyle Period</button>`;
+        })()}
 
       </div>
 
@@ -1300,6 +1228,87 @@ function onJobChange(val) {
   State.patchScenario({ job_id: val, custom_s0: null, custom_s35: null, custom_s50: null });
   renderActiveScenarioEditor();
   renderProjChart();
+}
+
+// ── School management ─────────────────────────────────────────────────────────
+async function addSchool() {
+  const s = State.getScenario();
+  if (!s) return;
+  const existing = (s.schools || []).slice().sort((a, b) => a.start_age - b.start_age);
+  const last = existing[existing.length - 1];
+  const defaultStart = last ? last.start_age + last.years + 1 : (s.start_age || 18);
+  const defaultType  = last ? 'grad' : 'undergrad';
+  try {
+    const sc = await api.createSchool(s.id, { type: defaultType, name: '', tuition_annual: 0, years: defaultType === 'undergrad' ? 4 : 2, start_age: defaultStart, parent_pays: 0, scholarship_annual: 0, scholarship_years: 0 });
+    State.addSchool(sc);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
+}
+
+async function updateSchool(schoolId, fields) {
+  const s = State.getScenario();
+  if (!s) return;
+  try {
+    const updated = await api.updateSchool(s.id, schoolId, fields);
+    State.updateSchool(updated);
+    await syncSchoolLoanForEntry(updated);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
+}
+
+async function deleteSchool(schoolId) {
+  const s = State.getScenario();
+  if (!s) return;
+  const sc = (s.schools || []).find(x => x.id === schoolId);
+  try {
+    if (sc?.loan_id) {
+      await api.deleteDebt(s.id, sc.loan_id);
+      State.removeDebt(sc.loan_id);
+    }
+    await api.deleteSchool(s.id, schoolId);
+    State.removeSchool(schoolId);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
+}
+
+// ── Lifestyle management ───────────────────────────────────────────────────────
+async function addLifestyle() {
+  const s = State.getScenario();
+  if (!s) return;
+  const existing = (s.lifestyles || []).slice().sort((a, b) => a.start_age - b.start_age);
+  const last = existing[existing.length - 1];
+  const defaultStart = last ? last.start_age + 10 : (s.start_age || 22);
+  try {
+    const l = await api.createLifestyle(s.id, { start_age: defaultStart });
+    State.addLifestyle(l);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
+}
+
+async function updateLifestyle(lifestyleId, fields) {
+  const s = State.getScenario();
+  if (!s) return;
+  try {
+    const updated = await api.updateLifestyle(s.id, lifestyleId, fields);
+    State.updateLifestyle(updated);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
+}
+
+async function deleteLifestyle(lifestyleId) {
+  const s = State.getScenario();
+  if (!s) return;
+  try {
+    await api.deleteLifestyle(s.id, lifestyleId);
+    State.removeLifestyle(lifestyleId);
+    renderActiveScenarioEditor();
+    renderProjChart();
+  } catch (err) { showToast(err.message, true); }
 }
 
 // ── Multi-career management ────────────────────────────────────────────────────

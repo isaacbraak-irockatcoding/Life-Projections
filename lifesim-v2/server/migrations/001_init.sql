@@ -157,23 +157,41 @@ CREATE INDEX IF NOT EXISTS idx_careers_scenario ON careers(scenario_id);
 ALTER TABLE scenarios ADD COLUMN rent_start_age INTEGER DEFAULT NULL;
 ALTER TABLE scenarios ADD COLUMN rent_end_age   INTEGER DEFAULT NULL;
 
--- School / higher education fields
-ALTER TABLE scenarios ADD COLUMN school_name              TEXT    DEFAULT NULL;
-ALTER TABLE scenarios ADD COLUMN school_tuition_annual    REAL    NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN school_years             INTEGER NOT NULL DEFAULT 4;
-ALTER TABLE scenarios ADD COLUMN school_start_age         INTEGER DEFAULT NULL;
-ALTER TABLE scenarios ADD COLUMN school_parent_pays       INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN school_scholarship_annual REAL   NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN school_scholarship_years  INTEGER DEFAULT NULL;
-ALTER TABLE scenarios ADD COLUMN school_loan_id           INTEGER DEFAULT NULL;
-ALTER TABLE scenarios ADD COLUMN grad_name                TEXT    DEFAULT NULL;
-ALTER TABLE scenarios ADD COLUMN grad_tuition_annual      REAL    NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN grad_years               INTEGER NOT NULL DEFAULT 2;
-ALTER TABLE scenarios ADD COLUMN grad_start_age           INTEGER DEFAULT NULL;
-ALTER TABLE scenarios ADD COLUMN grad_parent_pays         INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN grad_scholarship_annual  REAL    NOT NULL DEFAULT 0;
-ALTER TABLE scenarios ADD COLUMN grad_scholarship_years   INTEGER DEFAULT NULL;
-ALTER TABLE scenarios ADD COLUMN grad_loan_id             INTEGER DEFAULT NULL;
+-- Lifestyle periods (time-based living expenses — replaces flat le_* fields)
+CREATE TABLE IF NOT EXISTS lifestyles (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  scenario_id           INTEGER NOT NULL REFERENCES scenarios(id) ON DELETE CASCADE,
+  start_age             INTEGER NOT NULL DEFAULT 22,
+  le_housing_tier       TEXT    NOT NULL DEFAULT 'modest',
+  le_utilities_monthly  REAL    NOT NULL DEFAULT 0,
+  le_groceries          TEXT    NOT NULL DEFAULT 'average',
+  le_dining             TEXT    NOT NULL DEFAULT 'never',
+  le_has_car            INTEGER NOT NULL DEFAULT 0,
+  le_pet_count          INTEGER NOT NULL DEFAULT 0,
+  le_phone_monthly      REAL    NOT NULL DEFAULT 0,
+  le_healthcare_monthly REAL    NOT NULL DEFAULT 0,
+  le_clothing_monthly   REAL    NOT NULL DEFAULT 0,
+  annual_expenses       REAL    NOT NULL DEFAULT 0,
+  created_at            INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_lifestyles_scenario ON lifestyles(scenario_id);
+
+-- Schools table (replaces flat school_* columns — supports multiple schools per scenario)
+CREATE TABLE IF NOT EXISTS schools (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  scenario_id          INTEGER NOT NULL REFERENCES scenarios(id) ON DELETE CASCADE,
+  type                 TEXT    NOT NULL DEFAULT 'undergrad',
+  name                 TEXT    NOT NULL DEFAULT '',
+  tuition_annual       REAL    NOT NULL DEFAULT 0,
+  years                INTEGER NOT NULL DEFAULT 4,
+  start_age            INTEGER NOT NULL DEFAULT 18,
+  parent_pays          INTEGER NOT NULL DEFAULT 0,
+  scholarship_annual   REAL    NOT NULL DEFAULT 0,
+  scholarship_years    INTEGER NOT NULL DEFAULT 0,
+  loan_id              INTEGER DEFAULT NULL,
+  created_at           INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_schools_scenario ON schools(scenario_id);
 
 -- Groups feature
 CREATE TABLE IF NOT EXISTS groups (
