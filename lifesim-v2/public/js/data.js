@@ -24,7 +24,6 @@ const EVENT_TYPES = [
 { id: 'inheritance',    label: 'Inheritance',    emoji: '💰', defaultCost: -50000, defaultAnnual: 0,     defaultYears: 1  },
   { id: 'marriage',       label: 'Marriage',       emoji: '💍', defaultCost: 25000, defaultAnnual: 0,      defaultYears: 40 },
   { id: 'children',       label: 'Children',       emoji: '👶', defaultCost: 15000, defaultAnnual: -10000, defaultYears: 18 },
-  { id: 'job_change',     label: 'Job Change',     emoji: '💼', defaultCost: 0,     defaultAnnual: 0,      defaultYears: 1  },
   { id: 'custom',         label: 'Custom',         emoji: '📌', defaultCost: 0,     defaultAnnual: 0,      defaultYears: 1  },
 ];
 
