@@ -102,6 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_comments_link   ON comments(share_link_id);
 CREATE INDEX IF NOT EXISTS idx_friends_pair    ON friendships(requester_id, addressee_id);
 
 -- Compatibility migration: add annual_expenses to existing databases (silently ignored if column exists)
+ALTER TABLE users ADD COLUMN recovery_code_hash TEXT DEFAULT NULL;
 ALTER TABLE scenarios ADD COLUMN annual_expenses REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN state_code TEXT NOT NULL DEFAULT 'none';
 ALTER TABLE scenarios ADD COLUMN career_start_age INTEGER NOT NULL DEFAULT 22;
