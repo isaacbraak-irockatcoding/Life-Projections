@@ -64,6 +64,10 @@ const api = (() => {
     updateDebt:   (sid, did, data) => request('PATCH', `/api/scenarios/${sid}/debts/${did}`, data),
     deleteDebt:   (sid, did)  => request('DELETE', `/api/scenarios/${sid}/debts/${did}`),
 
+    createCareer: (sid, data) => request('POST',   `/api/scenarios/${sid}/careers`, data),
+    updateCareer: (sid, cid, data) => request('PATCH', `/api/scenarios/${sid}/careers/${cid}`, data),
+    deleteCareer: (sid, cid)  => request('DELETE', `/api/scenarios/${sid}/careers/${cid}`),
+
     getShareLink: (sid)       => request('POST',   `/api/scenarios/${sid}/share`),
     revokeShare:  (sid)       => request('DELETE', `/api/scenarios/${sid}/share`),
     getPublicScenario: (token)=> request('GET',    `/api/share/${token}`),

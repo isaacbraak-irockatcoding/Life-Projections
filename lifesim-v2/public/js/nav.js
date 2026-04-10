@@ -5,7 +5,7 @@
    debts → share → friends → auth → nav (last)
 ══════════════════════════════════════════════ */
 
-const TABS = ['proj', 'mc', 'share', 'friends', 'explore', 'auth'];
+const TABS = ['proj', 'share', 'friends', 'explore', 'auth'];
 
 function switchTab(tab) {
   TABS.forEach(t => {
@@ -18,7 +18,6 @@ function switchTab(tab) {
   // Render the selected tab
   switch (tab) {
     case 'proj':    renderProjTab();    break;
-    case 'mc':      renderMcTab();      break;
     case 'share':   renderShareTab();   break;
     case 'friends': renderFriendsTab();  break;
     case 'explore': renderExploreTab();  break;

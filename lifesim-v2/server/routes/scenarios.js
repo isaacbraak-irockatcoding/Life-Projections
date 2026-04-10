@@ -12,9 +12,10 @@ function ownScenario(scenarioId, userId) {
 function fullScenario(id) {
   const s = db.prepare('SELECT * FROM scenarios WHERE id = ?').get(id);
   if (!s) return null;
-  s.assets = db.prepare('SELECT * FROM assets WHERE scenario_id = ? ORDER BY id').all(id);
-  s.debts  = db.prepare('SELECT * FROM debts  WHERE scenario_id = ? ORDER BY id').all(id);
-  s.events = db.prepare('SELECT * FROM events WHERE scenario_id = ? ORDER BY at_age').all(id);
+  s.assets  = db.prepare('SELECT * FROM assets  WHERE scenario_id = ? ORDER BY id').all(id);
+  s.debts   = db.prepare('SELECT * FROM debts   WHERE scenario_id = ? ORDER BY id').all(id);
+  s.events  = db.prepare('SELECT * FROM events  WHERE scenario_id = ? ORDER BY at_age').all(id);
+  s.careers = db.prepare('SELECT * FROM careers WHERE scenario_id = ? ORDER BY start_age').all(id);
   return s;
 }
 
@@ -79,7 +80,8 @@ router.patch('/:id', (req, res, next) => {
                      'start_age','career_start_age','retire_age','save_pct','return_rate','annual_expenses','state_code',
                      'le_has_rent','le_rent_monthly','le_pet_count','le_dining','le_has_car','le_utilities_monthly',
                      'le_housing_tier','le_groceries','le_phone_monthly','le_healthcare_monthly','le_clothing_monthly',
-                     'health_insurance_monthly','health_insurance_coverage','health_insurance_plan','health_insurance_enabled'];
+                     'health_insurance_monthly','health_insurance_coverage','health_insurance_plan','health_insurance_enabled',
+                     'rent_start_age','rent_end_age'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields to update' });
 
@@ -147,6 +149,11 @@ router.post('/:id/clone', (req, res, next) => {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
           .run(newId, e.event_type, e.name, e.emoji, e.at_age, e.one_time_cost,
                e.annual_impact, e.duration_years, e.color);
+      }
+      for (const c of (orig.careers || [])) {
+        db.prepare(`INSERT INTO careers (scenario_id, job_id, custom_s0, custom_s35, custom_s50, start_age, end_age, label)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(newId, c.job_id, c.custom_s0, c.custom_s35, c.custom_s50, c.start_age, c.end_age, c.label);
       }
       return newId;
     });

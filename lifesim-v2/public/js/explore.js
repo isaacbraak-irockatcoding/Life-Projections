@@ -7,35 +7,27 @@
 const PARTNERS = [
   {
     emoji: '🏦',
-    name: 'Fidelity',
-    category: 'Brokerage',
-    description: 'Zero-commission stock & ETF trading. No account minimums. One of the largest brokerages in the US.',
-    cta: 'Open Account',
-    url: '#', // TODO: replace with affiliate link
+    name: 'SoFi',
+    category: 'Banking & Investing',
+    description: 'Use my referral link to sign up for SoFi — deposit $50 and get $25 in free money. No account fees, high-yield savings, and investing all in one app.',
+    cta: 'Get $25 Free',
+    url: '#', // TODO: add referral link when available
   },
   {
     emoji: '⛽',
     name: 'Upside',
     category: 'Gas Savings',
-    description: 'Get cash back on every gas fill-up. Works at thousands of stations nationwide.',
+    description: 'If you use invite code <strong>ISAAC63883</strong>, get 15¢/gal extra cashback on your first gas fill-up, 10% back at restaurants &amp; groceries, and earn 10¢ every time a friend uses the app.',
     cta: 'Get the App',
-    url: '#', // TODO: replace with affiliate link
+    url: 'https://upside.app.link/referral/ISAAC63883',
   },
   {
-    emoji: '🛍️',
-    name: 'Rakuten',
-    category: 'Shopping Savings',
-    description: 'Earn cash back at 3,500+ stores including Amazon, Walmart, and more. Free to join.',
-    cta: 'Start Saving',
-    url: '#', // TODO: replace with affiliate link
-  },
-  {
-    emoji: '₿',
-    name: 'Coinbase',
-    category: 'Crypto',
-    description: 'Buy, sell, and hold cryptocurrency. One of the most trusted exchanges in the world.',
-    cta: 'Sign Up',
-    url: '#', // TODO: replace with affiliate link
+    emoji: '⚡',
+    name: 'Strike',
+    category: 'Bitcoin',
+    description: 'Founded by Jack Mallers, Strike makes buying bitcoin simple and affordable. Use my referral link and get $500 of fee-free trading when you join and buy bitcoin.',
+    cta: 'Get $500 Fee Free Trading',
+    url: 'https://invite.strike.me/O9D7SA',
   },
 ];
 

@@ -11,6 +11,15 @@ function getSalary(job, yearsWorked) {
   return job.s35 + (job.s50 - job.s35) * Math.min((yearsWorked - 35) / 15, 1);
 }
 
+// Returns the active career record for a given age from the careers array.
+// A career is active if age >= start_age and (end_age is null OR age < end_age).
+// If multiple overlap, picks the one with the highest start_age.
+function getCareerAtAge(careers, age) {
+  return (careers || [])
+    .filter(c => age >= c.start_age && (c.end_age == null || age < c.end_age))
+    .sort((a, b) => b.start_age - a.start_age)[0] || null;
+}
+
 // Returns total annual debt payments still owed at a given age
 // Offsets amortization by each debt's individual start_age
 function getDebtPayments(debts, age, scenarioStartAge) {
@@ -299,10 +308,14 @@ function calcLivingExpenses(scenario) {
 // Leftover cash (income − debt payments − events − asset contribs) accumulates in a
 // cash pool at 0% return. Net worth = sum(asset values) + cashPool + homeValues − remainingDebt
 function calculatePath(scenario) {
-  const job = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
-  const effectiveJob = scenario.custom_s0
-    ? { ...job, s0: scenario.custom_s0, s35: scenario.custom_s35 || job.s35, s50: scenario.custom_s50 || job.s50 }
-    : job;
+  const careers = scenario.careers || [];
+  const hasMultiCareer = careers.length > 0;
+
+  // Legacy single-career fallback (used when no careers array is populated)
+  const legacyJob = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
+  const legacyEffectiveJob = scenario.custom_s0
+    ? { ...legacyJob, s0: scenario.custom_s0, s35: scenario.custom_s35 || legacyJob.s35, s50: scenario.custom_s50 || legacyJob.s50 }
+    : legacyJob;
 
   const startAge          = scenario.start_age || 25;
   const careerStartAge    = scenario.career_start_age ?? 22;
@@ -323,10 +336,14 @@ function calculatePath(scenario) {
   // Debts are tracked as separate liabilities via getRemainingDebtBalance
   let savingsPool = 0;
 
-  // Age at which the user first buys a home — rent stops from this age onward
+  // Age at which the user first buys a home
   const housePurchaseAge = (scenario.events || [])
     .filter(e => e.event_type === 'house_purchase')
     .reduce((min, e) => Math.min(min, e.at_age), Infinity);
+
+  // Rent period: starts at rent_start_age (default: startAge), ends at rent_end_age or house purchase
+  const rentStartAge = scenario.rent_start_age != null ? scenario.rent_start_age : startAge;
+  const rentEndAge   = scenario.rent_end_age   != null ? scenario.rent_end_age   : housePurchaseAge;
 
   const workAges = Array.from({ length: 46 }, (_, i) => startAge + i);
   const path     = new Array(startAge).fill(null);
@@ -358,10 +375,10 @@ function calculatePath(scenario) {
     const debtInterestBreakdown = getDebtInterestBreakdown(scenario.debts, age, startAge);
     const interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
 
-    // Living expenses for this year: inflate 3%/yr, drop rent once a house is owned
+    // Living expenses for this year: inflate 3%/yr, apply housing cost only while renting
     const yearsElapsed   = age - startAge;
-    const hasHouse       = age >= housePurchaseAge;
-    const livingExpenses = (baseLivingTotal - (hasHouse ? baseHousingCost : 0)) * Math.pow(1.03, yearsElapsed);
+    const isRenting      = age >= rentStartAge && age < rentEndAge;
+    const livingExpenses = (baseLivingTotal - (isRenting ? 0 : baseHousingCost)) * Math.pow(1.03, yearsElapsed);
 
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;
@@ -369,8 +386,21 @@ function calculatePath(scenario) {
     const isRetired = age >= scenario.retire_age;
 
     if (!isRetired) {
-      const yearsWorked  = age - careerStartAge;
-      const salary       = yearsWorked >= 0 ? getSalary(effectiveJob, yearsWorked) : 0;
+      let salary = 0;
+      if (hasMultiCareer) {
+        const activeCareer = getCareerAtAge(careers, age);
+        if (activeCareer) {
+          const jobBase = JOBS.find(j => j.id === activeCareer.job_id) || JOBS[0];
+          const effectiveCareerJob = activeCareer.custom_s0 != null
+            ? { ...jobBase, s0: activeCareer.custom_s0, s35: activeCareer.custom_s35 || jobBase.s35, s50: activeCareer.custom_s50 || jobBase.s50 }
+            : jobBase;
+          const yearsWorked = age - activeCareer.start_age;
+          salary = yearsWorked >= 0 ? getSalary(effectiveCareerJob, yearsWorked) : 0;
+        }
+      } else {
+        const yearsWorked = age - careerStartAge;
+        salary = yearsWorked >= 0 ? getSalary(legacyEffectiveJob, yearsWorked) : 0;
+      }
       const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code, calcHealthInsuranceAnnual(scenario)) : 0;
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
 

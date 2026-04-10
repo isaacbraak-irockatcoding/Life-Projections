@@ -28,6 +28,11 @@
   <div class="scenario-chips" id="scenario-chips"></div>
 
   <div class="container">
+    <div id="scenario-editors"></div>
+
+    <div id="proj-stats"></div>
+    <div id="proj-breakeven"></div>
+
     <div class="card">
       <div class="chart-hdr">
         <h3 style="margin-bottom:0;">Wealth Projection</h3>
@@ -50,50 +55,9 @@
       <div id="proj-cashflow" style="display:none;"></div>
       <div class="legend" id="proj-legend"></div>
     </div>
-
-    <div id="proj-stats"></div>
-    <div id="proj-breakeven"></div>
-
-    <div id="scenario-editors"></div>
   </div>
 </div>
 
-<!-- ═══════════════ MONTE CARLO SCREEN ═══════════════ -->
-<div id="screen-mc" style="display:none;">
-  <div class="container">
-    <div class="card">
-      <div class="chart-hdr">
-        <h3 style="margin-bottom:0;">Monte Carlo</h3>
-        <span class="micro" id="mc-sim-label">1,000 simulations</span>
-      </div>
-
-      <div id="mc-scenario-btns" class="btn-row" style="margin-bottom:14px;"></div>
-
-      <canvas id="mcChart" height="240"></canvas>
-
-      <div style="margin-top:14px;">
-        <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-          <label class="micro">Return Volatility</label>
-          <span class="micro num" id="vol-label">12%</span>
-        </div>
-        <input type="range" id="vol-slider" min="2" max="30" value="12"
-          oninput="updateMcVolatility(this.value)"/>
-      </div>
-    </div>
-
-    <div class="card card-alt">
-      <div id="mc-prob-bars"></div>
-    </div>
-
-    <button class="btn btn-ghost" style="margin-top:4px;" onclick="runMonteCarlo()">
-      ▶ Run Simulation
-    </button>
-
-    <div class="disclaimer" style="margin-top:14px;">
-      ⚠️ <span>Monte Carlo uses randomised annual returns with the selected volatility. Past performance does not predict future results.</span>
-    </div>
-  </div>
-</div>
 
 <!-- ═══════════════ SHARE SCREEN ═══════════════ -->
 <div id="screen-share" style="display:none;">
@@ -121,9 +85,6 @@
   <div class="nav-item" id="nav-proj"    onclick="switchTab('proj')">
     <span class="nav-icon">📈</span>Projections
   </div>
-  <div class="nav-item" id="nav-mc"      onclick="switchTab('mc')">
-    <span class="nav-icon">📊</span>Monte Carlo
-  </div>
   <div class="nav-item" id="nav-share"   onclick="switchTab('share')">
     <span class="nav-icon">🔗</span>Share
   </div>
@@ -141,7 +102,6 @@
 <script src="/js/state.js"></script>
 <script src="/js/engine.js"></script>
 <script src="/js/projections.js"></script>
-<script src="/js/montecarlo.js"></script>
 <script src="/js/events.js"></script>
 <script src="/js/assets.js"></script>
 <script src="/js/debts.js"></script>

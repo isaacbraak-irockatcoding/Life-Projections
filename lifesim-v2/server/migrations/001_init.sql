@@ -137,6 +137,25 @@ ALTER TABLE scenarios ADD COLUMN le_phone_monthly      REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN le_healthcare_monthly REAL NOT NULL DEFAULT 0;
 ALTER TABLE scenarios ADD COLUMN le_clothing_monthly   REAL NOT NULL DEFAULT 0;
 
+-- Multiple careers per scenario
+CREATE TABLE IF NOT EXISTS careers (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  scenario_id INTEGER NOT NULL REFERENCES scenarios(id) ON DELETE CASCADE,
+  job_id      TEXT    NOT NULL DEFAULT 'sw_eng',
+  custom_s0   REAL,
+  custom_s35  REAL,
+  custom_s50  REAL,
+  start_age   INTEGER NOT NULL DEFAULT 22,
+  end_age     INTEGER,
+  label       TEXT,
+  created_at  INTEGER NOT NULL DEFAULT (unixepoch())
+);
+CREATE INDEX IF NOT EXISTS idx_careers_scenario ON careers(scenario_id);
+
+-- Rent period tracking
+ALTER TABLE scenarios ADD COLUMN rent_start_age INTEGER DEFAULT NULL;
+ALTER TABLE scenarios ADD COLUMN rent_end_age   INTEGER DEFAULT NULL;
+
 -- Groups feature
 CREATE TABLE IF NOT EXISTS groups (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
