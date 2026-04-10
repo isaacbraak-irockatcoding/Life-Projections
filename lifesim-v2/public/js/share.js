@@ -26,7 +26,7 @@ function renderShareTab() {
       <div class="share-badge">🔗 Share your scenario</div>
       <h2>${scenario.name}</h2>
       <p style="color:var(--muted2);font-size:12px;margin:6px 0 20px;">
-        ${scenario.job_id !== 'custom' ? (JOBS.find(j => j.id === scenario.job_id) || {}).name || '' : 'Custom salary'} ·
+        ${(() => { const c = (scenario.careers||[]).slice().sort((a,b)=>a.start_age-b.start_age)[0]; const eid = c ? c.job_id : scenario.job_id; return eid !== 'custom' ? (JOBS.find(j=>j.id===eid)||{}).name||'' : 'Custom salary'; })()} ·
         Retiring at ${scenario.retire_age} ·
         Projected ${fmtM(finalWl)}
       </p>
@@ -239,8 +239,10 @@ function escapeHtml(str) {
 function generateRecap(scenario) {
   const v = (arr) => arr[scenario.id % arr.length];
 
-  const job     = JOBS.find(j => j.id === scenario.job_id) || JOBS[0];
-  const jobName = scenario.job_id === 'custom' ? 'your mystery career' : job.name;
+  const _careers = (scenario.careers || []).slice().sort((a, b) => a.start_age - b.start_age);
+  const effectiveJobId = _careers.length > 0 ? _careers[0].job_id : scenario.job_id;
+  const job     = JOBS.find(j => j.id === effectiveJobId) || JOBS[0];
+  const jobName = effectiveJobId === 'custom' ? 'your mystery career' : job.name;
   const s0      = scenario.custom_s0 != null ? scenario.custom_s0 : job.s0;
   const result  = calculatePath(scenario);
   const finalWl = result.path[result.path.length - 1];
@@ -264,7 +266,7 @@ function generateRecap(scenario) {
     lawyer:      v(["You chose law. Long hours, billable by the minute, and a wardrobe that means business. Welcome to the grind.", "A lawyer. You'll argue for a living, which means you've basically been training your whole life."]),
     custom:      v(["You're charting your own path with a custom salary. Mysterious. Intriguing. We respect the hustle.", "A custom career? Nobody puts you in a box. Except maybe your accountant."]),
   };
-  lines.push(careerLines[scenario.job_id] || `You chose ${jobName}. Interesting career choice. We support it.`);
+  lines.push(careerLines[effectiveJobId] || `You chose ${jobName}. Interesting career choice. We support it.`);
 
   // ── 2. Debt / events line ──
   const mortgage = debts.find(d => d.type === 'mortgage');

@@ -18,6 +18,33 @@ let _tableRows = {};
 const _tableExpanded = {};
 // Tracks which cashflow sections are expanded per scenario
 const _cashflowExpanded = {};
+// Compare mode: show all scenarios on chart simultaneously
+let _compareMode = false;
+// Cache of fully-loaded scenario objects keyed by id
+const _scenarioCache = {};
+
+function getToRender() {
+  const active = State.getScenario();
+  if (!_compareMode) return [active];
+  _scenarioCache[State.getActiveId()] = active;
+  return State.getScenarioList().map(s => _scenarioCache[s.id]).filter(Boolean);
+}
+
+async function toggleCompareMode() {
+  _compareMode = !_compareMode;
+  if (_compareMode) {
+    _scenarioCache[State.getActiveId()] = State.getScenario();
+    await Promise.all(
+      State.getScenarioList()
+        .filter(s => !_scenarioCache[s.id])
+        .map(async s => { _scenarioCache[s.id] = await api.getScenario(s.id); })
+    );
+  }
+  document.getElementById('compare-btn')?.classList.toggle('active', _compareMode);
+  renderProjChart();
+  renderProjTable();
+  renderCashflowSummary();
+}
 
 function setProjRange(years) {
   _projRange = years;
@@ -111,8 +138,10 @@ function renderScenarioChips() {
 async function selectScenarioChip(id) {
   if (id === State.getActiveId()) return;
   try {
-    await State.loadScenario(id);
+    const s = await State.loadScenario(id);
+    _scenarioCache[id] = s;
     renderProjTab();
+    renderShareTab();
   } catch (err) { showToast(err.message, true); }
 }
 
@@ -131,10 +160,7 @@ function renderProjChart() {
   const scenario = State.getScenario();
   if (!scenario) return;
 
-  const scenarios = State.getScenarioList()
-    .filter(s => s.events !== undefined);
-
-  const toRender = scenarios.length ? scenarios : [scenario];
+  const toRender = getToRender();
 
   const startAge = scenario.start_age || 25;
   const ages     = getAges(startAge);
@@ -243,8 +269,7 @@ function renderProjTable() {
   if (!el) return;
   const scenario  = State.getScenario();
   if (!scenario) return;
-  const scenarios = State.getScenarioList().filter(s => s.events !== undefined);
-  const toRender  = scenarios.length ? scenarios : [scenario];
+  const toRender  = getToRender();
   const startAge  = scenario.start_age || 25;
   const maxAge    = _projRange ? startAge + _projRange : Infinity;
 
@@ -338,8 +363,7 @@ function renderCashflowSummary() {
   if (!el) return;
   const scenario  = State.getScenario();
   if (!scenario) return;
-  const scenarios = State.getScenarioList().filter(s => s.events !== undefined);
-  const toRender  = scenarios.length ? scenarios : [scenario];
+  const toRender  = getToRender();
   const startAge  = scenario.start_age || 25;
   const maxAge    = _projRange ? startAge + _projRange : Infinity;
 
@@ -1145,6 +1169,8 @@ function pickScenarioColor(color) {
 function updateScenarioChipName(name) {
   renderScenarioChips();
   renderProjChart();
+  const pill = document.querySelector('#scenario-editors .path-pill');
+  if (pill) pill.textContent = '● ' + name;
 }
 
 function onJobChange(val) {
