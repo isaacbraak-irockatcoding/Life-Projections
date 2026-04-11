@@ -11,7 +11,7 @@ const PARTNERS = [
     category: 'Banking & Investing',
     description: 'Use my referral link to sign up for SoFi — deposit $50 and get $25 in free money. No account fees, high-yield savings, and investing all in one app.',
     cta: 'Get $25 Free',
-    url: '#', // TODO: add referral link when available
+    url: 'https://www.sofi.com/signup/referral/money?expv=t&gcp=7e6a744c-9b0a-42ae-b5ef-1e77f37a7c27&isAliasGcp=false',
   },
   {
     emoji: '⛽',
