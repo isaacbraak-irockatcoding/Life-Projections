@@ -430,7 +430,7 @@ function calculatePath(scenario) {
       const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code, calcHealthInsuranceAnnual(scenario)) : 0;
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
 
-      rowIncome   = Math.round(afterTax + ev.spouseIncome + tuitionThisYear);
+      rowIncome   = Math.round(afterTax);
       rowExpenses = Math.round(debtPayments + ev.oneTime + ev.annual + livingExpenses + tuitionThisYear);
 
       // Compound each asset at its own rate + add its annual contribution

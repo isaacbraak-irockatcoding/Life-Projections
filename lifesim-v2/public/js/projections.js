@@ -601,12 +601,7 @@ function renderActiveScenarioEditor() {
   const job   = JOBS.find(j => j.id === s.job_id) || JOBS[0];
   const effS0 = s.custom_s0 != null ? s.custom_s0 : job.s0;
 
-  // For the take-home breakdown: use first career's starting salary if careers exist
-  const firstCareer = (s.careers || []).sort((a,b) => a.start_age - b.start_age)[0];
-  const breakdownSalary = firstCareer
-    ? (firstCareer.custom_s0 != null ? firstCareer.custom_s0 : (JOBS.find(j=>j.id===firstCareer.job_id)||JOBS[0]).s0)
-    : effS0;
-  const breakdown = calcTakeHomeBreakdown(breakdownSalary, s.state_code, calcHealthInsuranceAnnual(s));
+  const healthInsuranceAnnual = calcHealthInsuranceAnnual(s);
 
   const financeCount = (s.assets || []).length + (s.debts || []).length;
   const eventCount   = (s.events || []).length;
@@ -858,34 +853,48 @@ function renderActiveScenarioEditor() {
         <p class="micro" style="color:var(--muted2);margin-top:-4px;margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Est. employee share based on 2024 employer benefit averages</p>
         ` : `<p class="micro" style="color:var(--muted2);margin-bottom:14px;text-transform:none;letter-spacing:0;font-size:11px;">Health insurance not included in take-home calculation</p>`}
 
-        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:4px;">
-          <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
-            <span class="micro" style="text-transform:none;letter-spacing:0;">Gross Salary</span>
-            <span style="font-size:13px;font-weight:600;">${fmtM(breakdown.gross)}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− Federal Tax</span>
-            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.federal)}</span>
-          </div>
-          ${breakdown.state > 0 ? `
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− State Tax</span>
-            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.state)}</span>
-          </div>` : ''}
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− FICA (SS + Medicare)</span>
-            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.fica)}</span>
-          </div>
-          ${breakdown.health > 0 ? `
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− Health Insurance</span>
-            <span style="font-size:12px;color:var(--coral);">−${fmtM(breakdown.health)}</span>
-          </div>` : ''}
-          <div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;">
-            <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Take-Home</span>
-            <span style="font-size:14px;font-weight:700;color:var(--accent);">${fmtM(breakdown.takeHome)}/yr</span>
-          </div>
-        </div>
+        ${(() => {
+          const sortedCareers = (s.careers || []).slice().sort((a,b) => a.start_age - b.start_age);
+          const breakdownItems = sortedCareers.length > 0
+            ? sortedCareers.map((c, i) => {
+                const cJob = JOBS.find(j => j.id === c.job_id) || JOBS[0];
+                const cs0  = c.custom_s0 != null ? c.custom_s0 : cJob.s0;
+                const bd   = calcTakeHomeBreakdown(cs0, s.state_code, healthInsuranceAnnual);
+                const ageRange = c.end_age != null ? `Age ${c.start_age}–${c.end_age}` : `Age ${c.start_age}+`;
+                return { label: `Career ${i+1} — ${cJob.name} (${ageRange})`, bd };
+              })
+            : [{ label: null, bd: calcTakeHomeBreakdown(effS0, s.state_code, healthInsuranceAnnual) }];
+          return breakdownItems.map(({ label, bd }) => `
+          <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:4px;">
+            ${label ? `<div style="margin-bottom:6px;"><span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">${label}</span></div>` : ''}
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span class="micro" style="text-transform:none;letter-spacing:0;">Gross Salary</span>
+              <span style="font-size:13px;font-weight:600;">${fmtM(bd.gross)}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− Federal Tax</span>
+              <span style="font-size:12px;color:var(--coral);">−${fmtM(bd.federal)}</span>
+            </div>
+            ${bd.state > 0 ? `
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− State Tax</span>
+              <span style="font-size:12px;color:var(--coral);">−${fmtM(bd.state)}</span>
+            </div>` : ''}
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− FICA (SS + Medicare)</span>
+              <span style="font-size:12px;color:var(--coral);">−${fmtM(bd.fica)}</span>
+            </div>
+            ${bd.health > 0 ? `
+            <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+              <span class="micro" style="color:var(--coral);text-transform:none;letter-spacing:0;">− Health Insurance</span>
+              <span style="font-size:12px;color:var(--coral);">−${fmtM(bd.health)}</span>
+            </div>` : ''}
+            <div style="border-top:1px solid var(--border);margin-top:6px;padding-top:6px;display:flex;justify-content:space-between;">
+              <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Take-Home</span>
+              <span style="font-size:14px;font-weight:700;color:var(--accent);">${fmtM(bd.takeHome)}/yr</span>
+            </div>
+          </div>`).join('');
+        })()}
       </div>
 
       <!-- ── Finances ── -->
