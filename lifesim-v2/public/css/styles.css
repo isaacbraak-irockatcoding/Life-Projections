@@ -40,7 +40,7 @@ body {
   font-family: var(--font-ui);
   font-size: 14px;
   min-height: 100vh;
-  padding-bottom: 86px;
+  padding-bottom: 116px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
 }
 
@@ -178,6 +178,17 @@ input[type=range] {
 /* ══════════════════════════════════════
    NAV
 ══════════════════════════════════════ */
+.app-footer {
+  position: fixed; bottom: 67px; left: 0; right: 0;
+  text-align: center; padding: 6px;
+  font-size: 12px;
+  background: rgba(7,8,15,.92); backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border);
+  color: var(--muted2);
+  z-index: 99;
+}
+.app-footer a { color: var(--teal); text-decoration: none; }
+
 .nav {
   position: fixed; bottom: 0; left: 0; right: 0;
   background: rgba(11,13,22,.95); backdrop-filter: blur(16px);

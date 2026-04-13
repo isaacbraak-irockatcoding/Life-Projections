@@ -45,6 +45,7 @@ function showApp() {
   document.getElementById('screen-auth').style.display = 'none';
   document.getElementById('main-nav').style.display = 'flex';
   document.getElementById('app-header').style.display = 'flex';
+  document.getElementById('app-footer').style.display = '';
 
   // Guest banner
   const existing = document.getElementById('guest-banner');

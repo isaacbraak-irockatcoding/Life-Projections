@@ -67,6 +67,12 @@ function renderExploreTab() {
       <p class="micro" style="text-transform:none;letter-spacing:0;color:var(--muted);font-size:11px;text-align:center;margin-top:20px;line-height:1.5;">
         Links above may be affiliate links. We may earn a commission if you sign up.
       </p>
+
+      <div class="card" style="text-align:center;margin-top:16px;padding:20px;">
+        <div style="font-weight:700;font-size:15px;margin-bottom:6px;">Contact</div>
+        <p class="micro" style="text-transform:none;letter-spacing:0;color:var(--muted2);font-size:12px;margin-bottom:10px;">Questions or feedback? Reach out at:</p>
+        <a href="mailto:Lifesimfinance@gmail.com" style="color:var(--teal);text-decoration:none;font-size:13px;">Lifesimfinance@gmail.com</a>
+      </div>
     </div>
   `;
 }

@@ -25,6 +25,20 @@ const _scenarioCache = {};
 // Animate mode: progressive line draw on chart
 let _animateMode = false;
 
+// Stick-figure animation state
+const MILESTONES = [
+  { value:   100_000, label: '$100K' },
+  { value:   250_000, label: '$250K' },
+  { value:   500_000, label: '$500K' },
+  { value: 1_000_000, label: '$1M'   },
+  { value: 2_000_000, label: '$2M'   },
+  { value: 5_000_000, label: '$5M'   },
+];
+let _reachedMilestones = new Set();
+let _celebratingUntil  = 0;
+let _celebrationLabel  = '';
+let _sfAnimFrame       = null;
+
 function getToRender() {
   const active = State.getScenario();
   if (!_compareMode) return [active];
@@ -51,6 +65,10 @@ async function toggleCompareMode() {
 function toggleAnimateMode() {
   _animateMode = !_animateMode;
   document.getElementById('animate-btn')?.classList.toggle('active', _animateMode);
+  _reachedMilestones = new Set();
+  _celebratingUntil  = 0;
+  _celebrationLabel  = '';
+  if (_sfAnimFrame) { cancelAnimationFrame(_sfAnimFrame); _sfAnimFrame = null; }
   renderProjChart();
 }
 
@@ -165,6 +183,99 @@ async function createNewScenario() {
   } catch (err) { showToast(err.message, true); }
 }
 
+// ── Stick-figure renderer ────────────────────────────────────────────────────
+function _sfStroke(ctx, x1, y1, x2, y2) {
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+}
+
+function drawStickFigure(ctx, cx, cy, now, color = '#ffffff') {
+  const celebrating = now < _celebratingUntil;
+  const R     = 4;
+  const phase = (now / 260) % (Math.PI * 2); // ~1.6 s run cycle
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.strokeStyle = color;
+  ctx.fillStyle   = color;
+  ctx.lineWidth   = 1;
+  ctx.lineCap     = 'round';
+  ctx.lineJoin    = 'round';
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(0, -R * 2.3, R * 0.38, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (celebrating) {
+    // Body
+    _sfStroke(ctx, 0, -R * 1.9, 0, -R * 0.5);
+    // Arms up – V shape
+    _sfStroke(ctx, 0, -R * 1.55, -R * 0.8, -R * 2.2);
+    _sfStroke(ctx, 0, -R * 1.55,  R * 0.8, -R * 2.2);
+    // Legs slightly apart
+    _sfStroke(ctx, 0, -R * 0.5, -R * 0.38, R * 0.55);
+    _sfStroke(ctx, 0, -R * 0.5,  R * 0.38, R * 0.55);
+    // Milestone label
+    ctx.fillStyle   = '#00d4aa';
+    ctx.font        = 'bold 7px Outfit, sans-serif';
+    ctx.textAlign   = 'center';
+    ctx.fillText(_celebrationLabel, 0, -R * 3.05);
+  } else {
+    // Running – legs and arms swing in alternating phase
+    const ls  = Math.sin(phase);
+    const as  = Math.sin(phase + Math.PI); // arms opposite legs
+    const lX  = ls * R * 0.6;
+    const aX  = as * R * 0.5;
+
+    // Body
+    _sfStroke(ctx, 0, -R * 1.9, 0, -R * 0.5);
+    // Arms
+    _sfStroke(ctx, 0, -R * 1.6,  aX, -R * 1.6 - R * 0.45);
+    _sfStroke(ctx, 0, -R * 1.6, -aX, -R * 1.6 - R * 0.45);
+    // Legs
+    _sfStroke(ctx, 0, -R * 0.5,  lX, -R * 0.5 + R * 0.75);
+    _sfStroke(ctx, 0, -R * 0.5, -lX, -R * 0.5 + R * 0.75);
+  }
+
+  ctx.restore();
+}
+
+const stickFigurePlugin = {
+  id: 'stickFigure',
+  afterDraw(chart) {
+    if (!_animateMode) return;
+    const now = Date.now();
+
+    chart.data.datasets.forEach((ds, dsIdx) => {
+      const meta = chart.getDatasetMeta(dsIdx);
+      if (!meta?.data?.length) return;
+
+      // Find the rightmost rendered point for this dataset
+      let headX = null, headY = null, headVal = 0;
+      for (let i = meta.data.length - 1; i >= 0; i--) {
+        const { x, y } = meta.data[i].getProps(['x', 'y'], false);
+        if (Number.isFinite(x) && Number.isFinite(y) && x > chart.chartArea.left) {
+          headX = x; headY = y; headVal = ds.data[i] ?? 0;
+          break;
+        }
+      }
+      if (headX === null) return;
+
+      // Trigger milestone celebrations (keyed per dataset so each tracks independently)
+      for (const ms of MILESTONES) {
+        const key = `${dsIdx}_${ms.value}`;
+        if (headVal >= ms.value && !_reachedMilestones.has(key)) {
+          _reachedMilestones.add(key);
+          _celebratingUntil = now + 1600;
+          _celebrationLabel = ms.label + '!';
+        }
+      }
+
+      drawStickFigure(chart.ctx, headX, headY, now, ds.borderColor);
+    });
+  },
+};
+
 function renderProjChart() {
   const scenario = State.getScenario();
   if (!scenario) return;
@@ -196,7 +307,7 @@ function renderProjChart() {
   });
 
   // Progressive line-draw animation — each point appears sequentially left to right
-  const totalDuration = 5000;
+  const totalDuration = 9000;
   const pointCount    = results[0]?.path?.length || 80;
   const delay         = totalDuration / pointCount;
   const animOptions   = _animateMode ? {
@@ -226,6 +337,7 @@ function renderProjChart() {
   if (charts.proj) charts.proj.destroy();
   charts.proj = new Chart(document.getElementById('projChart').getContext('2d'), {
     type: 'line',
+    plugins: _animateMode ? [stickFigurePlugin] : [],
     data: { labels: ages, datasets },
     options: {
       animation: animOptions,
@@ -249,6 +361,20 @@ function renderProjChart() {
       },
     },
   });
+
+  // After the line finishes drawing, keep the stick figure animated for 3 more seconds
+  if (_animateMode) {
+    if (_sfAnimFrame) { cancelAnimationFrame(_sfAnimFrame); _sfAnimFrame = null; }
+    setTimeout(() => {
+      const loopEnd = Date.now() + 3000;
+      function sfLoop() {
+        if (!_animateMode || !charts.proj) return;
+        charts.proj.draw();
+        if (Date.now() < loopEnd) _sfAnimFrame = requestAnimationFrame(sfLoop);
+      }
+      _sfAnimFrame = requestAnimationFrame(sfLoop);
+    }, totalDuration + 200);
+  }
 
   // Legend
   document.getElementById('proj-legend').innerHTML = toRender.map((s, i) => {
