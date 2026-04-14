@@ -229,23 +229,26 @@ async function exportTikTok() {
 
   const btn = document.getElementById('tiktok-btn');
 
-  // Switch to projections tab so the chart is rendered and animatable
+  // Switch to projections tab so chart is live and animatable
   switchTab('proj');
-  await new Promise(r => setTimeout(r, 350));
+  await new Promise(r => setTimeout(r, 400));
 
   const srcCanvas = document.getElementById('projChart');
   if (!srcCanvas) { showToast('Chart not found', true); return; }
 
-  // 9:16 recording canvas (TikTok vertical format)
+  // 9:16 recording canvas — MUST be in the DOM for captureStream to work
   const RW = 720, RH = 1280;
   const recCanvas = document.createElement('canvas');
   recCanvas.width  = RW;
   recCanvas.height = RH;
+  recCanvas.style.cssText = 'position:fixed;left:-9999px;top:0;pointer-events:none;';
+  document.body.appendChild(recCanvas);
   const rc = recCanvas.getContext('2d');
 
-  // Pick best supported codec
-  const mimeType = ['video/mp4;codecs=h264', 'video/webm;codecs=vp9', 'video/webm']
-    .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+  // WebM is the only reliably supported format for MediaRecorder
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    ? 'video/webm;codecs=vp9'
+    : 'video/webm';
 
   const stream   = recCanvas.captureStream(30);
   const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
@@ -253,75 +256,76 @@ async function exportTikTok() {
 
   recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
   recorder.onstop = () => {
-    const ext  = mimeType.includes('mp4') ? 'mp4' : 'webm';
-    const blob = new Blob(chunks, { type: mimeType });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
+    recCanvas.remove();
+    const blob = new Blob(chunks, { type: 'video/webm' });
+    if (blob.size < 1000) { showToast('Recording was empty — try again', true); return; }
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
     a.href     = url;
-    a.download = `lifesim-${(scenario.name || 'projection').replace(/\s+/g, '-').toLowerCase()}.${ext}`;
+    a.download = `lifesim-${(scenario.name || 'projection').replace(/\s+/g, '-').toLowerCase()}.webm`;
     a.click();
     URL.revokeObjectURL(url);
     if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
-    showToast('TikTok video saved!');
+    showToast('Saved! Upload the .webm file directly to TikTok.');
   };
 
-  // Prepare overlay data
+  // Overlay data
   const result  = calculatePath(scenario);
   const finalWl = result.path[result.path.length - 1];
   const color   = scenario.color || '#00d4aa';
 
   // Reset + trigger animation
-  if (typeof _animateMode !== 'undefined' && _animateMode) toggleAnimateMode();
-  await new Promise(r => setTimeout(r, 80));
+  if (_animateMode) toggleAnimateMode();
+  await new Promise(r => setTimeout(r, 100));
   toggleAnimateMode();
 
-  if (btn) { btn.textContent = '⏺ Recording… 12s'; btn.disabled = true; }
+  if (btn) { btn.textContent = '⏺ Recording… 13s'; btn.disabled = true; }
 
-  const DURATION  = 13_000; // 9s line draw + 3s victory lap + 1s buffer
+  const DURATION  = 13_000;
   const startTime = Date.now();
 
   recorder.start(200);
 
   function drawFrame() {
-    if (Date.now() - startTime > DURATION) {
+    const elapsed = Date.now() - startTime;
+    if (elapsed > DURATION) {
       recorder.stop();
       return;
     }
 
-    // Dark background
+    if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
+
     rc.fillStyle = '#07080f';
     rc.fillRect(0, 0, RW, RH);
 
-    // ── Top label ──
+    // Title
     rc.textAlign = 'center';
     rc.fillStyle = color;
-    rc.font = 'bold 38px Outfit, sans-serif';
+    rc.font = 'bold 38px sans-serif';
     rc.fillText('My Wealth Projection', RW / 2, 100);
-
     rc.fillStyle = '#7a83a8';
-    rc.font = '24px Outfit, sans-serif';
+    rc.font = '24px sans-serif';
     rc.fillText(scenario.name, RW / 2, 144);
 
-    // ── Chart (scaled to full width, vertically centered) ──
-    const pad     = 20;
-    const chartW  = RW - pad * 2;
-    const chartH  = chartW * (srcCanvas.height / srcCanvas.width);
-    const chartY  = Math.round((RH - chartH) / 2);
+    // Chart — scaled to full width, centered vertically
+    const pad    = 20;
+    const chartW = RW - pad * 2;
+    const chartH = Math.round(chartW * (srcCanvas.height / srcCanvas.width));
+    const chartY = Math.round((RH - chartH) / 2);
     rc.drawImage(srcCanvas, pad, chartY, chartW, chartH);
 
-    // ── Bottom stats ──
+    // Stats below chart
     const statsY = chartY + chartH + 48;
     rc.fillStyle = '#dde3f5';
-    rc.font = 'bold 52px JetBrains Mono, monospace';
+    rc.font = 'bold 52px monospace';
     rc.fillText(fmtM(finalWl), RW / 2, statsY);
-
     rc.fillStyle = '#7a83a8';
-    rc.font = '22px Outfit, sans-serif';
+    rc.font = '22px sans-serif';
     rc.fillText(`Retiring at ${scenario.retire_age}`, RW / 2, statsY + 44);
 
-    // ── Watermark ──
+    // Watermark
     rc.fillStyle = color;
-    rc.font = 'bold 20px Outfit, sans-serif';
+    rc.font = 'bold 20px sans-serif';
     rc.fillText('lifesimfinance.com', RW / 2, RH - 56);
 
     requestAnimationFrame(drawFrame);
