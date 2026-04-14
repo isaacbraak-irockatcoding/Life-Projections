@@ -5,8 +5,8 @@ const { requireAuth } = require('../middleware/auth');
 const router = express.Router();
 router.use(requireAuth);
 
-function ownScenario(scenarioId, userId) {
-  return db.prepare('SELECT id FROM scenarios WHERE id = ? AND user_id = ?').get(scenarioId, userId);
+async function ownScenario(scenarioId, userId) {
+  return await db.get('SELECT id FROM scenarios WHERE id = ? AND user_id = ?', [scenarioId, userId]);
 }
 
 function calcMortgagePayment(principal, annualRate, years) {
@@ -17,18 +17,18 @@ function calcMortgagePayment(principal, annualRate, years) {
 }
 
 // GET /api/scenarios/:scenarioId/events
-router.get('/:scenarioId/events', (req, res, next) => {
+router.get('/:scenarioId/events', async (req, res, next) => {
   try {
-    if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
-    const rows = db.prepare('SELECT * FROM events WHERE scenario_id = ? ORDER BY at_age').all(req.params.scenarioId);
+    if (!await ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
+    const rows = await db.all('SELECT * FROM events WHERE scenario_id = ? ORDER BY at_age', [req.params.scenarioId]);
     res.json(rows);
   } catch (err) { next(err); }
 });
 
 // POST /api/scenarios/:scenarioId/events
-router.post('/:scenarioId/events', (req, res, next) => {
+router.post('/:scenarioId/events', async (req, res, next) => {
   try {
-    if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
+    if (!await ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
     const {
       event_type = 'custom', name, emoji = '📌', at_age,
       one_time_cost = 0, duration_years = 1, color = '#38bdf8',
@@ -45,18 +45,17 @@ router.post('/:scenarioId/events', (req, res, next) => {
       ? Math.round(home_value * annual_cost_pct / 100)
       : (req.body.annual_impact || 0);
 
-    const r = db.prepare(`
+    const event = await db.get(`
       INSERT INTO events (scenario_id, event_type, name, emoji, at_age, one_time_cost,
                           annual_impact, duration_years, color, home_value, home_appreciation_rate,
                           mortgage_rate, mortgage_years, annual_cost_pct,
                           spouse_job_id, spouse_s0, spouse_s35, spouse_s50, spouse_career_start_age)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(req.params.scenarioId, event_type, name, emoji, at_age,
-           one_time_cost, annual_impact, duration_years, color,
-           home_value, home_appreciation_rate, mortgage_rate, mortgage_years, annual_cost_pct,
-           spouse_job_id, spouse_s0, spouse_s35, spouse_s50, spouse_career_start_age);
-
-    const event = db.prepare('SELECT * FROM events WHERE id = ?').get(r.lastInsertRowid);
+      RETURNING *
+    `, [req.params.scenarioId, event_type, name, emoji, at_age,
+        one_time_cost, annual_impact, duration_years, color,
+        home_value, home_appreciation_rate, mortgage_rate, mortgage_years, annual_cost_pct,
+        spouse_job_id, spouse_s0, spouse_s35, spouse_s50, spouse_career_start_age]);
 
     let mortgage_debt = null;
     let home_asset = null;
@@ -66,20 +65,20 @@ router.post('/:scenarioId/events', (req, res, next) => {
       const principal = Math.max(0, home_value - one_time_cost);
       if (principal > 0) {
         const monthly_payment = calcMortgagePayment(principal, mortgage_rate, mortgage_years);
-        const dr = db.prepare(`
+        mortgage_debt = await db.get(`
           INSERT INTO debts (scenario_id, type, label, balance, interest_rate, monthly_payment, start_age, event_id)
           VALUES (?, 'mortgage', ?, ?, ?, ?, ?, ?)
-        `).run(req.params.scenarioId, `${name} Mortgage`, principal,
-               mortgage_rate, Math.round(monthly_payment * 100) / 100, at_age, event.id);
-        mortgage_debt = db.prepare('SELECT * FROM debts WHERE id = ?').get(dr.lastInsertRowid);
+          RETURNING *
+        `, [req.params.scenarioId, `${name} Mortgage`, principal,
+            mortgage_rate, Math.round(monthly_payment * 100) / 100, at_age, event.id]);
       }
 
       // Auto-create Real Estate asset (tagged with event_id so engine skips it — tracked via homes[])
-      const ar = db.prepare(`
+      home_asset = await db.get(`
         INSERT INTO assets (scenario_id, type, label, value, expected_return_rate, start_age, event_id)
         VALUES (?, 'real_estate', ?, ?, ?, ?, ?)
-      `).run(req.params.scenarioId, name, home_value, home_appreciation_rate, at_age, event.id);
-      home_asset = db.prepare('SELECT * FROM assets WHERE id = ?').get(ar.lastInsertRowid);
+        RETURNING *
+      `, [req.params.scenarioId, name, home_value, home_appreciation_rate, at_age, event.id]);
     }
 
     res.status(201).json({ ...event, mortgage_debt, home_asset });
@@ -87,9 +86,9 @@ router.post('/:scenarioId/events', (req, res, next) => {
 });
 
 // PATCH /api/scenarios/:scenarioId/events/:id
-router.patch('/:scenarioId/events/:id', (req, res, next) => {
+router.patch('/:scenarioId/events/:id', async (req, res, next) => {
   try {
-    if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
+    if (!await ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
     const allowed = ['event_type','name','emoji','at_age','one_time_cost','annual_impact','duration_years','color',
                      'home_value','home_appreciation_rate','mortgage_rate','mortgage_years','annual_cost_pct',
                      'spouse_job_id','spouse_s0','spouse_s35','spouse_s50','spouse_career_start_age'];
@@ -97,36 +96,36 @@ router.patch('/:scenarioId/events/:id', (req, res, next) => {
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets = fields.map(f => `${f} = ?`).join(', ');
     const vals = fields.map(f => req.body[f]);
-    db.prepare(`UPDATE events SET ${sets} WHERE id = ? AND scenario_id = ?`)
-      .run(...vals, req.params.id, req.params.scenarioId);
-    res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id));
+    await db.run(`UPDATE events SET ${sets} WHERE id = ? AND scenario_id = ?`,
+      [...vals, req.params.id, req.params.scenarioId]);
+    res.json(await db.get('SELECT * FROM events WHERE id = ?', [req.params.id]));
   } catch (err) { next(err); }
 });
 
 // DELETE /api/scenarios/:scenarioId/events/:id
-router.delete('/:scenarioId/events/:id', (req, res, next) => {
+router.delete('/:scenarioId/events/:id', async (req, res, next) => {
   try {
-    if (!ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
+    if (!await ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
 
     // Find and delete any auto-created mortgage debts
-    const linkedDebts = db.prepare('SELECT id FROM debts WHERE event_id = ? AND scenario_id = ?')
-      .all(req.params.id, req.params.scenarioId);
+    const linkedDebts = await db.all('SELECT id FROM debts WHERE event_id = ? AND scenario_id = ?',
+      [req.params.id, req.params.scenarioId]);
     const deleted_debt_ids = linkedDebts.map(d => d.id);
     if (deleted_debt_ids.length) {
-      db.prepare('DELETE FROM debts WHERE event_id = ? AND scenario_id = ?')
-        .run(req.params.id, req.params.scenarioId);
+      await db.run('DELETE FROM debts WHERE event_id = ? AND scenario_id = ?',
+        [req.params.id, req.params.scenarioId]);
     }
 
     // Find and delete any auto-created assets
-    const linkedAssets = db.prepare('SELECT id FROM assets WHERE event_id = ? AND scenario_id = ?')
-      .all(req.params.id, req.params.scenarioId);
+    const linkedAssets = await db.all('SELECT id FROM assets WHERE event_id = ? AND scenario_id = ?',
+      [req.params.id, req.params.scenarioId]);
     const deleted_asset_ids = linkedAssets.map(a => a.id);
     if (deleted_asset_ids.length) {
-      db.prepare('DELETE FROM assets WHERE event_id = ? AND scenario_id = ?')
-        .run(req.params.id, req.params.scenarioId);
+      await db.run('DELETE FROM assets WHERE event_id = ? AND scenario_id = ?',
+        [req.params.id, req.params.scenarioId]);
     }
 
-    db.prepare('DELETE FROM events WHERE id = ? AND scenario_id = ?').run(req.params.id, req.params.scenarioId);
+    await db.run('DELETE FROM events WHERE id = ? AND scenario_id = ?', [req.params.id, req.params.scenarioId]);
 
     res.json({ deleted_debt_ids, deleted_asset_ids });
   } catch (err) { next(err); }

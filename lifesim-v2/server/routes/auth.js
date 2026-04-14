@@ -26,7 +26,7 @@ router.post('/register', async (req, res, next) => {
       return res.status(400).json({ error: 'password must be at least 6 characters' });
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE username = ?').get(username);
+    const existing = await db.get('SELECT id FROM users WHERE LOWER(username) = LOWER(?)', [username]);
     if (existing) {
       return res.status(409).json({ error: 'Username already taken' });
     }
@@ -39,11 +39,11 @@ router.post('/register', async (req, res, next) => {
       crypto.randomBytes(2).toString('hex').toUpperCase();
     const recoveryHash = await bcrypt.hash(rawCode, SALT_ROUNDS);
 
-    const result = db.prepare(
-      'INSERT INTO users (username, password_hash, avatar, recovery_code_hash) VALUES (?, ?, ?, ?)'
-    ).run(username, hash, avatar, recoveryHash);
+    const user = await db.get(
+      'INSERT INTO users (username, password_hash, avatar, recovery_code_hash) VALUES (?, ?, ?, ?) RETURNING id, username, avatar',
+      [username, hash, avatar, recoveryHash]
+    );
 
-    const user = { id: result.lastInsertRowid, username, avatar };
     res.status(201).json({ token: makeToken(user.id), user, recovery_code: rawCode });
   } catch (err) {
     next(err);
@@ -58,7 +58,7 @@ router.post('/login', async (req, res, next) => {
       return res.status(400).json({ error: 'username and password are required' });
     }
 
-    const row = db.prepare('SELECT id, username, avatar, password_hash FROM users WHERE username = ?').get(username);
+    const row = await db.get('SELECT id, username, avatar, password_hash FROM users WHERE LOWER(username) = LOWER(?)', [username]);
     if (!row) {
       return res.status(401).json({ error: 'Invalid username or password' });
     }
@@ -82,10 +82,10 @@ router.post('/guest', async (req, res, next) => {
     const username = `guest_${suffix}`;
     const password = crypto.randomBytes(16).toString('hex');
     const hash     = await bcrypt.hash(password, SALT_ROUNDS);
-    const result   = db.prepare(
-      'INSERT INTO users (username, password_hash, avatar) VALUES (?, ?, ?)'
-    ).run(username, hash, '🦊');
-    const user = { id: result.lastInsertRowid, username, avatar: '🦊' };
+    const user = await db.get(
+      'INSERT INTO users (username, password_hash, avatar) VALUES (?, ?, ?) RETURNING id, username, avatar',
+      [username, hash, '🦊']
+    );
     res.status(201).json({ token: makeToken(user.id), user });
   } catch (err) {
     next(err);
@@ -103,7 +103,7 @@ router.post('/recover', async (req, res, next) => {
       return res.status(400).json({ error: 'New password must be at least 6 characters' });
     }
 
-    const row = db.prepare('SELECT id, recovery_code_hash FROM users WHERE username = ?').get(username);
+    const row = await db.get('SELECT id, recovery_code_hash FROM users WHERE LOWER(username) = LOWER(?)', [username]);
     if (!row || !row.recovery_code_hash) {
       return res.status(400).json({ error: 'Invalid username or recovery code' });
     }
@@ -115,8 +115,7 @@ router.post('/recover', async (req, res, next) => {
 
     const newHash = await bcrypt.hash(new_password, SALT_ROUNDS);
     // Invalidate the recovery code after use so it can't be reused
-    db.prepare('UPDATE users SET password_hash = ?, recovery_code_hash = NULL WHERE id = ?')
-      .run(newHash, row.id);
+    await db.run('UPDATE users SET password_hash = ?, recovery_code_hash = NULL WHERE id = ?', [newHash, row.id]);
 
     res.json({ message: 'Password reset successfully' });
   } catch (err) {
@@ -125,9 +124,9 @@ router.post('/recover', async (req, res, next) => {
 });
 
 // GET /api/auth/me
-router.get('/me', requireAuth, (req, res, next) => {
+router.get('/me', requireAuth, async (req, res, next) => {
   try {
-    const row = db.prepare('SELECT id, username, avatar, created_at FROM users WHERE id = ?').get(req.userId);
+    const row = await db.get('SELECT id, username, avatar, created_at FROM users WHERE id = ?', [req.userId]);
     if (!row) return res.status(404).json({ error: 'User not found' });
     res.json(row);
   } catch (err) {

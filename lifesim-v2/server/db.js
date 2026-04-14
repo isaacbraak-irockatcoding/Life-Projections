@@ -1,32 +1,75 @@
-const { DatabaseSync } = require('node:sqlite');
-const path = require('path');
+const { Pool } = require('pg');
 const fs   = require('fs');
+const path = require('path');
 require('dotenv').config();
 
-const dbPath = process.env.DB_PATH
-  ? path.resolve(process.env.DB_PATH)
-  : path.join(__dirname, '..', 'lifesim.db');
-const db = new DatabaseSync(dbPath);
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false,
+});
 
-// Enable WAL mode and foreign keys
-db.exec('PRAGMA journal_mode = WAL');
-db.exec('PRAGMA foreign_keys = ON');
+// Convert ? placeholders to $1, $2, ... for PostgreSQL
+function toPositional(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
 
-// Run migrations (skip PRAGMA lines already run above)
-const migrationSql = fs.readFileSync(
-  path.join(__dirname, 'migrations', '001_init.sql'),
-  'utf8'
-);
-// Execute each statement individually (node:sqlite doesn't support multi-statement exec with PRAGMA)
-migrationSql
-  .split(';')
-  .map(s => s.trim())
-  .filter(s => s && !s.startsWith('PRAGMA'))
-  .forEach(s => { try { db.exec(s + ';'); } catch {} });
+const db = {
+  async get(sql, params = []) {
+    const { rows } = await pool.query(toPositional(sql), params);
+    return rows[0] ?? null;
+  },
 
-// ── Compatibility shim: node:sqlite uses different API than better-sqlite3 ──
-// better-sqlite3: db.prepare(sql).run(...), .get(...), .all(...)
-// node:sqlite:     db.prepare(sql).run(...), .get(...), .all(...)  ← same!
-// The main difference: node:sqlite .run() returns {changes, lastInsertRowid}
+  async all(sql, params = []) {
+    const { rows } = await pool.query(toPositional(sql), params);
+    return rows;
+  },
+
+  async run(sql, params = []) {
+    await pool.query(toPositional(sql), params);
+  },
+
+  async transaction(fn) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const tdb = {
+        async get(sql, params = []) {
+          const { rows } = await client.query(toPositional(sql), params);
+          return rows[0] ?? null;
+        },
+        async all(sql, params = []) {
+          const { rows } = await client.query(toPositional(sql), params);
+          return rows;
+        },
+        async run(sql, params = []) {
+          await client.query(toPositional(sql), params);
+        },
+      };
+      const result = await fn(tdb);
+      await client.query('COMMIT');
+      return result;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
+};
+
+// Run migrations on startup to create all tables
+async function runMigrations() {
+  const sql = fs.readFileSync(
+    path.join(__dirname, 'migrations', '001_init.sql'),
+    'utf8'
+  );
+  await pool.query(sql);
+}
+
+runMigrations().catch(err => {
+  console.error('Migration failed:', err);
+  process.exit(1);
+});
 
 module.exports = db;
