@@ -98,6 +98,18 @@ function toggleSection(key) {
   renderActiveScenarioEditor();
 }
 
+async function toggleLiving() {
+  _openSections.living = !_openSections.living;
+  if (_openSections.living) {
+    const s = State.getScenario();
+    if (s && (s.lifestyles || []).length === 0) {
+      await addLifestyle(); // already calls renderActiveScenarioEditor()
+      return;
+    }
+  }
+  renderActiveScenarioEditor();
+}
+
 function toggleBalanceSection(scenarioId, section) {
   const key = `${scenarioId}-${section}`;
   _tableExpanded[key] = !_tableExpanded[key];
@@ -732,9 +744,10 @@ function renderActiveScenarioEditor() {
   const financeCount = (s.assets || []).length + (s.debts || []).length;
   const eventCount   = (s.events || []).length;
 
-  function secHdr(key, title, badge) {
+  function secHdr(key, title, badge, onclickFn) {
     const open = _openSections[key];
-    return `<div class="sec-hdr" onclick="toggleSection('${key}')">
+    const handler = onclickFn || `toggleSection('${key}')`;
+    return `<div class="sec-hdr" onclick="${handler}">
       <span class="sec-arrow">${open ? '▾' : '▸'}</span>
       <span class="sec-title">${title}</span>
       ${badge ? `<span class="sec-badge">${badge}</span>` : ''}
@@ -1202,7 +1215,7 @@ function renderActiveScenarioEditor() {
       </div>
 
       <!-- ── Lifestyle ── -->
-      ${secHdr('living', 'Lifestyle', (s.lifestyles||[]).length || '')}
+      ${secHdr('living', 'Lifestyle', (s.lifestyles||[]).length || '', 'toggleLiving()')}
       <div class="sec-body" style="display:${_openSections.living ? '' : 'none'};">
 
         <!-- Rent timing — scenario-level -->

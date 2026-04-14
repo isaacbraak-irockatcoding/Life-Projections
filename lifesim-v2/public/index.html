@@ -27,6 +27,11 @@
   <!-- Scenario chips live outside the container so they go edge-to-edge -->
   <div class="scenario-chips" id="scenario-chips"></div>
 
+  <div id="graph-banner" class="graph-banner" onclick="document.getElementById('projChart').scrollIntoView({behavior:'smooth',block:'center'})">
+    <span>📈 Live wealth projection graph below — scroll down to see it</span>
+    <button class="graph-banner-close" onclick="event.stopPropagation();document.getElementById('graph-banner').style.display='none';localStorage.setItem('graphBannerDismissed','1')">×</button>
+  </div>
+
   <div class="container">
     <div id="scenario-editors"></div>
 
@@ -122,6 +127,12 @@
 <script src="/js/explore.js"></script>
 <script src="/js/auth.js"></script>
 <script>
+  // Hide graph banner if previously dismissed
+  if (localStorage.getItem('graphBannerDismissed') === '1') {
+    const b = document.getElementById('graph-banner');
+    if (b) b.style.display = 'none';
+  }
+
   // Toast utility
   function showToast(msg, isError = false) {
     const existing = document.querySelector('.toast');
@@ -145,7 +156,7 @@
     function createPanel(side) {
       const el = document.createElement('div');
       el.className = `money-rain-panel ${side}`;
-      document.body.appendChild(el);
+      document.body.insertBefore(el, document.body.firstChild);
       return el;
     }
 

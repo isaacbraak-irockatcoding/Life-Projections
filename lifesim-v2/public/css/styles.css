@@ -60,6 +60,19 @@ body {
   padding: 10px 16px; max-width: 100%;
 }
 .app-header-title { font-family: var(--font-disp); font-size: 18px; color: var(--teal); }
+.graph-banner {
+  display: flex; align-items: center; justify-content: space-between;
+  background: rgba(0,212,170,.08); border-bottom: 1px solid rgba(0,212,170,.2);
+  padding: 9px 16px; cursor: pointer; user-select: none;
+  font-size: 12px; font-weight: 600; color: var(--teal);
+  transition: background .15s;
+}
+.graph-banner:hover { background: rgba(0,212,170,.14); }
+.graph-banner-close {
+  background: none; border: none; color: var(--teal); font-size: 16px;
+  line-height: 1; cursor: pointer; padding: 0 0 0 12px; opacity: .7;
+}
+.graph-banner-close:hover { opacity: 1; }
 .save-btn {
   padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 600;
   border: 1px solid var(--border2); background: transparent; color: var(--muted2);
@@ -474,6 +487,10 @@ input[type=range] {
 }
 .money-rain-panel.left  { left: 0; }
 .money-rain-panel.right { right: 0; }
+@media (max-width: 540px) {
+  .money-rain-panel.left  { width: 50vw; }
+  .money-rain-panel.right { width: 50vw; }
+}
 
 @keyframes moneyFall {
   0%   { transform: translateY(-60px) rotate(0deg);   opacity: 0; }
