@@ -37,8 +37,9 @@ function renderShareTab() {
     <div class="card fade-up" style="margin-top:14px;">
       <h3>Export</h3>
       <div class="btn-row">
-        <button class="btn btn-ghost btn-sm" onclick="exportChart('projChart','lifesim-projection.png')">📥 Download Chart PNG</button>
+        <button class="btn btn-ghost btn-sm" id="tiktok-btn" onclick="exportTikTok()">🎬 Export TikTok Video</button>
       </div>
+      <p class="micro" style="text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted2);margin-top:8px;">Records the animated chart in 9:16 vertical format — ready to post.</p>
     </div>
 
     <div id="share-comments-section" style="display:none;" class="fade-up">
@@ -54,7 +55,7 @@ function renderShareTab() {
     </div>
 
     <div class="disclaimer" style="margin-top:14px;">
-      ⚠️ <span>Educational use only. Not financial advice. Projections use simplified 2024 federal tax brackets and approximate state effective rates. Does not account for filing status, deductions beyond standard, FICA, investment fees, or market volatility.</span>
+      ⚠️ <span>Educational use only. Not financial advice.</span>
     </div>
 
     <div style="text-align:center;margin-top:20px;">
@@ -222,13 +223,111 @@ async function postPublicComment(token) {
   } catch (err) { showToast(err.message, true); }
 }
 
-function exportChart(canvasId, filename) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-  const link = document.createElement('a');
-  link.download = filename;
-  link.href = canvas.toDataURL('image/png');
-  link.click();
+async function exportTikTok() {
+  const scenario = State.getScenario();
+  if (!scenario) return;
+
+  const btn = document.getElementById('tiktok-btn');
+
+  // Switch to projections tab so the chart is rendered and animatable
+  switchTab('proj');
+  await new Promise(r => setTimeout(r, 350));
+
+  const srcCanvas = document.getElementById('projChart');
+  if (!srcCanvas) { showToast('Chart not found', true); return; }
+
+  // 9:16 recording canvas (TikTok vertical format)
+  const RW = 720, RH = 1280;
+  const recCanvas = document.createElement('canvas');
+  recCanvas.width  = RW;
+  recCanvas.height = RH;
+  const rc = recCanvas.getContext('2d');
+
+  // Pick best supported codec
+  const mimeType = ['video/mp4;codecs=h264', 'video/webm;codecs=vp9', 'video/webm']
+    .find(t => MediaRecorder.isTypeSupported(t)) || 'video/webm';
+
+  const stream   = recCanvas.captureStream(30);
+  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+  const chunks   = [];
+
+  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+  recorder.onstop = () => {
+    const ext  = mimeType.includes('mp4') ? 'mp4' : 'webm';
+    const blob = new Blob(chunks, { type: mimeType });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `lifesim-${(scenario.name || 'projection').replace(/\s+/g, '-').toLowerCase()}.${ext}`;
+    a.click();
+    URL.revokeObjectURL(url);
+    if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+    showToast('TikTok video saved!');
+  };
+
+  // Prepare overlay data
+  const result  = calculatePath(scenario);
+  const finalWl = result.path[result.path.length - 1];
+  const color   = scenario.color || '#00d4aa';
+
+  // Reset + trigger animation
+  if (typeof _animateMode !== 'undefined' && _animateMode) toggleAnimateMode();
+  await new Promise(r => setTimeout(r, 80));
+  toggleAnimateMode();
+
+  if (btn) { btn.textContent = '⏺ Recording… 12s'; btn.disabled = true; }
+
+  const DURATION  = 13_000; // 9s line draw + 3s victory lap + 1s buffer
+  const startTime = Date.now();
+
+  recorder.start(200);
+
+  function drawFrame() {
+    if (Date.now() - startTime > DURATION) {
+      recorder.stop();
+      return;
+    }
+
+    // Dark background
+    rc.fillStyle = '#07080f';
+    rc.fillRect(0, 0, RW, RH);
+
+    // ── Top label ──
+    rc.textAlign = 'center';
+    rc.fillStyle = color;
+    rc.font = 'bold 38px Outfit, sans-serif';
+    rc.fillText('My Wealth Projection', RW / 2, 100);
+
+    rc.fillStyle = '#7a83a8';
+    rc.font = '24px Outfit, sans-serif';
+    rc.fillText(scenario.name, RW / 2, 144);
+
+    // ── Chart (scaled to full width, vertically centered) ──
+    const pad     = 20;
+    const chartW  = RW - pad * 2;
+    const chartH  = chartW * (srcCanvas.height / srcCanvas.width);
+    const chartY  = Math.round((RH - chartH) / 2);
+    rc.drawImage(srcCanvas, pad, chartY, chartW, chartH);
+
+    // ── Bottom stats ──
+    const statsY = chartY + chartH + 48;
+    rc.fillStyle = '#dde3f5';
+    rc.font = 'bold 52px JetBrains Mono, monospace';
+    rc.fillText(fmtM(finalWl), RW / 2, statsY);
+
+    rc.fillStyle = '#7a83a8';
+    rc.font = '22px Outfit, sans-serif';
+    rc.fillText(`Retiring at ${scenario.retire_age}`, RW / 2, statsY + 44);
+
+    // ── Watermark ──
+    rc.fillStyle = color;
+    rc.font = 'bold 20px Outfit, sans-serif';
+    rc.fillText('lifesimfinance.com', RW / 2, RH - 56);
+
+    requestAnimationFrame(drawFrame);
+  }
+
+  requestAnimationFrame(drawFrame);
 }
 
 function escapeHtml(str) {
