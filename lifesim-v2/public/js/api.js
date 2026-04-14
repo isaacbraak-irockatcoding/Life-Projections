@@ -9,12 +9,12 @@ const api = (() => {
 
   function setToken(token) {
     _token = token;
-    sessionStorage.setItem('ls_token', token);
+    localStorage.setItem('ls_token', token);
   }
 
   function clearToken() {
     _token = null;
-    sessionStorage.removeItem('ls_token');
+    localStorage.removeItem('ls_token');
   }
 
   function getToken() { return _token; }

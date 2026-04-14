@@ -73,7 +73,7 @@ function showApp() {
   }
 
   // 2. Try silent re-auth via sessionStorage token
-  const storedToken = sessionStorage.getItem('ls_token');
+  const storedToken = localStorage.getItem('ls_token');
   if (storedToken) {
     try {
       api.setToken(storedToken);
