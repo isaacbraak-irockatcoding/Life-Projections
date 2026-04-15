@@ -288,11 +288,97 @@ const stickFigurePlugin = {
   },
 };
 
+// Returns true when the user has not entered any meaningful data yet
+function isScenarioBlank(s) {
+  return s.custom_s0 == null && s.custom_s50 == null &&
+    !(s.assets  || []).length &&
+    !(s.events  || []).length &&
+    !(s.schools || []).length;
+}
+
+function renderRetirementTally(toRender, results) {
+  const el = document.getElementById('retirement-tally');
+  if (!el) return;
+
+  el.innerHTML = '<div class="retirement-tally-grid">' +
+    toRender.map((s, i) => {
+      const color     = s.color || PATH_COLORS[i % PATH_COLORS.length];
+      const rows      = results[i].rows || [];
+      const retireAge = s.retire_age || 65;
+      const retireRow = rows.find(r => r.age >= retireAge) || rows[rows.length - 1] || {};
+      const netWorth  = retireRow.balance || 0;
+      const liquid    = (retireRow.savingsPool || 0) +
+        (retireRow.assetBreakdown || []).reduce((sum, a) => sum + a.value, 0);
+      const annual    = Math.round(results[i].annualDrawn || 0);
+
+      return `<div class="tally-card" style="--tally-color:${color}">
+        <div class="tally-scenario">
+          <span class="tally-dot" style="background:${color}"></span>
+          <span class="tally-name" style="color:${color}">${s.name}</span>
+          <span class="tally-retire-age">@ age ${retireAge}</span>
+        </div>
+        <div class="tally-numbers">
+          <div class="tally-item">
+            <div class="tally-label">Net Worth</div>
+            <div class="tally-value" style="color:${color}">${fmtM(netWorth)}</div>
+          </div>
+          <div class="tally-sep"></div>
+          <div class="tally-item">
+            <div class="tally-label">Liquid Assets</div>
+            <div class="tally-value tally-liquid">${fmtM(liquid)}</div>
+          </div>
+          <div class="tally-sep"></div>
+          <div class="tally-item">
+            <div class="tally-label">Annual Draw</div>
+            <div class="tally-value tally-draw">${fmtM(annual)}/yr</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('') + '</div>';
+}
+
 function renderProjChart() {
   const scenario = State.getScenario();
   if (!scenario) return;
 
-  const toRender = getToRender();
+  const toRender  = getToRender();
+  const emptyEl   = document.getElementById('chart-empty-state');
+  const canvas    = document.getElementById('projChart');
+  const tallyEl   = document.getElementById('retirement-tally');
+
+  // Empty state — no meaningful data entered yet
+  if (isScenarioBlank(scenario)) {
+    if (emptyEl) {
+      emptyEl.style.display = 'block';
+      emptyEl.innerHTML = `<div class="chart-empty-wrap">
+        <svg class="chart-empty-path" viewBox="0 0 400 180" preserveAspectRatio="none">
+          <path d="M0,160 C60,150 100,120 160,90 S280,30 400,10"
+                stroke="#00d4aa" stroke-width="2" stroke-dasharray="6 4" fill="none"/>
+        </svg>
+        <div class="chart-empty-icon">📈</div>
+        <div class="chart-empty-headline">Your financial future starts here<span class="chart-empty-cursor"></span></div>
+        <div class="chart-empty-sub">Answer the questions below to map out your financial future</div>
+        <div class="chart-empty-hints">
+          <span>🎓 School</span>
+          <span>💼 Career</span>
+          <span>💰 Assets</span>
+          <span>🏠 Events</span>
+          <span>✨ Living</span>
+        </div>
+        <div class="chart-empty-arrow">↓</div>
+      </div>`;
+    }
+    if (canvas) canvas.style.display = 'none';
+    if (tallyEl) tallyEl.innerHTML = '';
+    document.getElementById('proj-stats').innerHTML   = '';
+    document.getElementById('proj-breakeven').innerHTML = '';
+    if (charts.proj) { charts.proj.destroy(); charts.proj = null; }
+    return;
+  }
+
+  // Data present — show chart, hide empty state
+  if (emptyEl) emptyEl.style.display = 'none';
+  if (canvas)  canvas.style.display  = 'block';
 
   const startAge = scenario.start_age || 25;
   const ages     = getAges(startAge);
@@ -434,6 +520,9 @@ function renderProjChart() {
       </div>`;
     } else { beEl.innerHTML = ''; }
   } else { beEl.innerHTML = ''; }
+
+  // Live retirement tally
+  renderRetirementTally(toRender, results);
 
   // Sync active view
   if (_viewMode === 'table')    renderProjTable();

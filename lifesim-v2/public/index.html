@@ -27,16 +27,9 @@
   <!-- Scenario chips live outside the container so they go edge-to-edge -->
   <div class="scenario-chips" id="scenario-chips"></div>
 
-  <div id="graph-banner" class="graph-banner" onclick="document.getElementById('projChart').scrollIntoView({behavior:'smooth',block:'center'})">
-    <span>📈 Live wealth projection graph below — scroll down to see it</span>
-    <button class="graph-banner-close" onclick="event.stopPropagation();document.getElementById('graph-banner').style.display='none';localStorage.setItem('graphBannerDismissed','1')">×</button>
-  </div>
-
   <div class="container">
-    <div id="scenario-editors"></div>
-
-    <div id="proj-stats"></div>
-    <div id="proj-breakeven"></div>
+    <!-- Live retirement tally — populated by renderRetirementTally() -->
+    <div id="retirement-tally"></div>
 
     <div class="card">
       <div class="chart-hdr">
@@ -58,6 +51,8 @@
           </div>
         </div>
       </div>
+      <!-- Empty state shown when no data filled in yet -->
+      <div id="chart-empty-state" style="display:none;"></div>
       <canvas id="projChart" height="240"></canvas>
       <div id="proj-table" style="display:none;"></div>
       <div id="proj-cashflow" style="display:none;"></div>
@@ -66,6 +61,11 @@
         <button id="animate-btn" onclick="toggleAnimateMode()" class="range-btn">▶ Animate</button>
       </div>
     </div>
+
+    <div id="proj-stats"></div>
+    <div id="proj-breakeven"></div>
+
+    <div id="scenario-editors"></div>
   </div>
 </div>
 
@@ -127,12 +127,6 @@
 <script src="/js/explore.js"></script>
 <script src="/js/auth.js"></script>
 <script>
-  // Hide graph banner if previously dismissed
-  if (localStorage.getItem('graphBannerDismissed') === '1') {
-    const b = document.getElementById('graph-banner');
-    if (b) b.style.display = 'none';
-  }
-
   // Toast utility
   function showToast(msg, isError = false) {
     const existing = document.querySelector('.toast');
