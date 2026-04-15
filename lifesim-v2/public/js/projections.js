@@ -291,9 +291,12 @@ const stickFigurePlugin = {
 // Returns true when the user has not entered any meaningful data yet
 function isScenarioBlank(s) {
   return s.custom_s0 == null && s.custom_s50 == null &&
-    !(s.assets  || []).length &&
-    !(s.events  || []).length &&
-    !(s.schools || []).length;
+    !(s.assets     || []).length &&
+    !(s.debts      || []).length &&
+    !(s.events     || []).length &&
+    !(s.schools    || []).length &&
+    !(s.careers    || []).length &&
+    !(s.lifestyles || []).length;
 }
 
 function renderRetirementTally(toRender, results) {
