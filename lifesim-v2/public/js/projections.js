@@ -6,7 +6,7 @@
 const charts = {};
 
 // Which sections are expanded per-session (global, survives scenario switches)
-const _openSections = { school: false, career: false, finances: false, events: false, living: false, settings: false };
+const _openSections = { school: false, career: false, finances: false, events: false, living: false };
 
 // Time range for projection chart (null = All)
 let _projRange = null;
@@ -373,7 +373,6 @@ function renderProjChart() {
     }
     if (canvas) canvas.style.display = 'none';
     if (tallyEl) tallyEl.innerHTML = '';
-    document.getElementById('proj-stats').innerHTML   = '';
     document.getElementById('proj-breakeven').innerHTML = '';
     if (charts.proj) { charts.proj.destroy(); charts.proj = null; }
     return;
@@ -486,19 +485,8 @@ function renderProjChart() {
     </div>`;
   }).join('');
 
-  // Stats
-  document.getElementById('proj-stats').innerHTML = `<div class="stats-row">` +
-    toRender.map((s, i) => {
-      const color = s.color || PATH_COLORS[i % PATH_COLORS.length];
-      const path  = results[i].path;
-      const final = path[path.length - 1];
-      const inc   = Math.round(results[i].annualDrawn);
-      return `<div class="stat-box">
-        <div class="stat-val" style="color:${color}">${fmtM(final)}</div>
-        <div class="stat-sub">${s.name} @ ${(s.start_age || 25) + 45}</div>
-        <div class="stat-sub" style="margin-top:3px;color:var(--muted)">~${fmtM(inc)}/yr</div>
-      </div>`;
-    }).join('') + `</div>`;
+  // Live retirement tally
+  renderRetirementTally(toRender, results);
 
   // Breakeven (first two scenarios)
   const beEl = document.getElementById('proj-breakeven');
@@ -523,9 +511,6 @@ function renderProjChart() {
       </div>`;
     } else { beEl.innerHTML = ''; }
   } else { beEl.innerHTML = ''; }
-
-  // Live retirement tally
-  renderRetirementTally(toRender, results);
 
   // Sync active view
   if (_viewMode === 'table')    renderProjTable();
@@ -1425,19 +1410,6 @@ function renderActiveScenarioEditor() {
 
       </div>
 
-      <!-- ── Projection Settings ── -->
-      ${secHdr('settings', 'Projection Settings')}
-      <div class="sec-body" style="display:${_openSections.settings ? '' : 'none'};">
-        <div class="field">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-            <label class="micro">Target Retirement Age</label>
-            <span class="micro num" id="sl-ra" style="color:var(--text)">${s.retire_age}</span>
-          </div>
-          <input type="range" min="45" max="75" value="${s.retire_age}"
-            oninput="updSlider('retire_age',this.value,'ra','')"/>
-        </div>
-      </div>
-
     </div>`;
 
   // Populate sub-lists for open sections
@@ -1604,13 +1576,6 @@ async function deleteCareer(careerId) {
     renderActiveScenarioEditor();
     renderProjChart();
   } catch (err) { showToast(err.message, true); }
-}
-
-function updSlider(key, value, abbr, suffix) {
-  State.patchScenario({ [key]: parseFloat(value) });
-  const lbl = document.getElementById(`sl-${abbr}`);
-  if (lbl) lbl.textContent = value + suffix;
-  renderProjChart();
 }
 
 async function cloneActiveScenario() {
