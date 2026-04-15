@@ -310,8 +310,6 @@ function renderRetirementTally(toRender, results) {
       const retireAge = s.retire_age || 65;
       const retireRow = rows.find(r => r.age >= retireAge) || rows[rows.length - 1] || {};
       const netWorth  = retireRow.balance || 0;
-      const liquid    = (retireRow.savingsPool || 0) +
-        (retireRow.assetBreakdown || []).reduce((sum, a) => sum + a.value, 0);
       const annual    = Math.round(results[i].annualDrawn || 0);
 
       return `<div class="tally-card" style="--tally-color:${color}">
@@ -324,11 +322,6 @@ function renderRetirementTally(toRender, results) {
           <div class="tally-item">
             <div class="tally-label">Net Worth</div>
             <div class="tally-value" style="color:${color}">${fmtM(netWorth)}</div>
-          </div>
-          <div class="tally-sep"></div>
-          <div class="tally-item">
-            <div class="tally-label">Liquid Assets</div>
-            <div class="tally-value tally-liquid">${fmtM(liquid)}</div>
           </div>
           <div class="tally-sep"></div>
           <div class="tally-item">
@@ -949,7 +942,7 @@ function renderActiveScenarioEditor() {
               <input type="number" min="14" max="70" value="${sc.start_age||18}"
                 onchange="updateSchool(${sc.id},{start_age:+this.value})"/>
             </div>
-            <label class="micro" style="display:block;margin-bottom:6px;margin-top:8px;">Does someone else pay tuition?</label>
+            <label class="micro" style="display:block;margin-bottom:6px;margin-top:8px;">Does Mommy or Daddy pay for tuition?</label>
             <div style="display:flex;gap:8px;margin-bottom:10px;">
               <button class="btn btn-sm${sc.parent_pays?' btn-primary':' btn-ghost'}"
                 onclick="updateSchool(${sc.id},{parent_pays:1})">Yes 🎓 Covered!</button>

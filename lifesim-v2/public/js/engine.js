@@ -363,7 +363,7 @@ function calculatePath(scenario) {
   const rentStartAge = scenario.rent_start_age != null ? scenario.rent_start_age : startAge;
   const rentEndAge   = scenario.rent_end_age   != null ? scenario.rent_end_age   : housePurchaseAge;
 
-  const workAges = Array.from({ length: 46 }, (_, i) => startAge + i);
+  const workAges = Array.from({ length: Math.max(1, 86 - startAge) }, (_, i) => startAge + i);
   const path     = new Array(startAge).fill(null);
   let retireBal = null, annualDrawn = 0;
   const homes = []; // { value, rate } — house_purchase events
@@ -523,10 +523,9 @@ function calculatePath(scenario) {
   return { path, annualDrawn, rows };
 }
 
-// Returns ages 0 → (startAge + 45) for chart labels
-function getAges(startAge) {
-  const end = (startAge || 25) + 45;
-  return Array.from({ length: end + 1 }, (_, i) => i);
+// Returns ages 0 → 85 for chart labels
+function getAges() {
+  return Array.from({ length: 86 }, (_, i) => i);
 }
 
 function fmtM(v) {
