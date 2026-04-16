@@ -7,6 +7,49 @@
 
 const TABS = ['proj', 'share', 'friends', 'explore', 'auth'];
 
+// ── Guest signup prompt ────────────────────────────────────────────────────────
+let _guestPromptShown = false;
+
+function _showGuestSignupModal() {
+  const existing = document.getElementById('guest-signup-modal');
+  if (existing) return;
+  const modal = document.createElement('div');
+  modal.id = 'guest-signup-modal';
+  modal.style.cssText = 'position:fixed;inset:0;z-index:8000;display:flex;align-items:flex-end;justify-content:center;background:rgba(0,0,0,.45);';
+  modal.innerHTML = `
+    <div style="background:var(--surf);border-radius:20px 20px 0 0;padding:28px 24px 32px;width:100%;max-width:520px;text-align:center;">
+      <div style="font-size:36px;margin-bottom:10px;">✨</div>
+      <h3 style="margin:0 0 8px;">Create a Free Profile</h3>
+      <p style="font-size:14px;color:var(--muted2);line-height:1.55;margin-bottom:24px;">
+        Create a free profile to save scenarios<br>and connect with friends.
+      </p>
+      <button class="btn btn-primary" style="width:100%;margin-bottom:10px;"
+        onclick="document.getElementById('guest-signup-modal').remove();handleLogout();setAuthMode('register');">
+        Create Profile
+      </button>
+      <button class="btn" style="width:100%;background:transparent;border:1px solid var(--border);color:var(--muted2);"
+        onclick="document.getElementById('guest-signup-modal').remove();handleLogout();setAuthMode('login');">
+        Sign In
+      </button>
+      <p style="margin-top:14px;">
+        <a href="#" onclick="document.getElementById('guest-signup-modal').remove();return false;"
+          style="font-size:12px;color:var(--muted);text-decoration:none;">Continue as Guest</a>
+      </p>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+function _onFirstGuestInput(e) {
+  if (_guestPromptShown) return;
+  const user = State.getUser();
+  if (!user || !user.username.startsWith('guest_')) return;
+  if (!e.target.closest?.('#screen-proj')) return;
+  _guestPromptShown = true;
+  _showGuestSignupModal();
+}
+document.addEventListener('change', _onFirstGuestInput, true);
+document.addEventListener('input',  _onFirstGuestInput, true);
+
 function switchTab(tab) {
   TABS.forEach(t => {
     const screen  = document.getElementById(`screen-${t}`);
@@ -86,7 +129,11 @@ function showApp() {
     }
   }
 
-  // 3. Show auth tab
-  document.getElementById('screen-auth').style.display = '';
-  renderAuthTab();
+  // 3. Auto-start as guest (show auth on error)
+  try {
+    await enterGuestMode();
+  } catch {
+    document.getElementById('screen-auth').style.display = '';
+    renderAuthTab();
+  }
 })();

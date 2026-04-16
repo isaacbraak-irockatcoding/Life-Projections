@@ -17,7 +17,7 @@ const PARTNERS = [
     emoji: '⛽',
     name: 'Upside',
     category: 'Gas Savings',
-    description: 'If you use invite code <strong>ISAAC63883</strong>, get 15¢/gal extra cashback on your first gas fill-up, 10% back at restaurants &amp; groceries, and earn 10¢ every time a friend uses the app.',
+    description: 'Get 15¢/gal extra cashback on your first gas fill-up, 10% back at restaurants &amp; groceries, and earn cashback every time a friend uses the app.',
     cta: 'Get the App',
     url: 'https://upside.app.link/referral/ISAAC63883',
   },
