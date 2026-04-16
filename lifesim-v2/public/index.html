@@ -61,8 +61,16 @@
       <div id="proj-table" style="display:none;"></div>
       <div id="proj-cashflow" style="display:none;"></div>
       <div class="legend" id="proj-legend"></div>
-      <div style="display:flex;justify-content:center;margin-top:10px;">
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;flex-wrap:wrap;">
         <button id="animate-btn" onclick="toggleAnimateMode()" class="range-btn">▶ Animate</button>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-size:11px;color:var(--muted2);">5s</span>
+          <input type="range" id="anim-duration-slider" min="5" max="15" step="1" value="9"
+            style="width:90px;accent-color:var(--teal);cursor:pointer;"
+            oninput="setAnimDuration(+this.value)"/>
+          <span style="font-size:11px;color:var(--muted2);">15s</span>
+          <span id="anim-duration-label" style="font-size:11px;color:var(--teal);min-width:22px;">9s</span>
+        </div>
       </div>
     </div>
 

@@ -23,7 +23,17 @@ let _compareMode = false;
 // Cache of fully-loaded scenario objects keyed by id
 const _scenarioCache = {};
 // Animate mode: progressive line draw on chart
-let _animateMode = false;
+let _animateMode      = false;
+let _animDuration     = 9000; // ms, user-adjustable 5–15s
+let _finalCelebrating = false; // true after animation completes
+let _finalCelebDsIdx  = -1;    // dataset index of the highest net-worth line
+
+function setAnimDuration(seconds) {
+  _animDuration = seconds * 1000;
+  const label = document.getElementById('anim-duration-label');
+  if (label) label.textContent = `${seconds}s`;
+  if (_animateMode) renderProjChart(); // re-trigger with new speed
+}
 
 // Stick-figure animation state
 const MILESTONES = [
@@ -68,6 +78,8 @@ function toggleAnimateMode() {
   _reachedMilestones = new Set();
   _celebratingUntil  = 0;
   _celebrationLabel  = '';
+  _finalCelebrating  = false;
+  _finalCelebDsIdx   = -1;
   if (_sfAnimFrame) { cancelAnimationFrame(_sfAnimFrame); _sfAnimFrame = null; }
   renderProjChart();
 }
@@ -200,51 +212,76 @@ function _sfStroke(ctx, x1, y1, x2, y2) {
   ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
 }
 
-function drawStickFigure(ctx, cx, cy, now, color = '#ffffff') {
+function drawStickFigure(ctx, cx, cy, now, color = '#ffffff', isWinner = false) {
   const celebrating = now < _celebratingUntil;
-  const R     = 4;
-  const phase = (now / 260) % (Math.PI * 2); // ~1.6 s run cycle
+  const R     = isWinner ? 7 : 4;
+  const phase = (now / 260) % (Math.PI * 2);
+  const bob   = isWinner ? Math.sin(now / 150) * 2.5 : 0;
 
   ctx.save();
-  ctx.translate(cx, cy);
+
+  // Pulsing rings + glow for winner
+  if (isWinner) {
+    ctx.shadowColor = color;
+    ctx.shadowBlur  = 14 + Math.sin(now / 180) * 6;
+
+    const ringPhase = (now % 900) / 900;
+    [0, 0.45].forEach(offset => {
+      const p  = (ringPhase + offset) % 1;
+      const rr = R * 2 + p * R * 5;
+      ctx.beginPath();
+      ctx.arc(cx, cy + bob - R * 2.3, rr, 0, Math.PI * 2);
+      ctx.strokeStyle  = color;
+      ctx.lineWidth    = 1.5;
+      ctx.globalAlpha  = (1 - p) * 0.5;
+      ctx.stroke();
+      ctx.globalAlpha  = 1;
+    });
+  }
+
+  ctx.translate(cx, cy + bob);
   ctx.strokeStyle = color;
   ctx.fillStyle   = color;
-  ctx.lineWidth   = 1;
+  ctx.lineWidth   = isWinner ? 1.6 : 1;
   ctx.lineCap     = 'round';
   ctx.lineJoin    = 'round';
 
   // Head
   ctx.beginPath();
-  ctx.arc(0, -R * 2.3, R * 0.38, 0, Math.PI * 2);
+  ctx.arc(0, -R * 2.3, R * (isWinner ? 0.42 : 0.38), 0, Math.PI * 2);
   ctx.fill();
 
-  if (celebrating) {
-    // Body
+  if (isWinner) {
+    // Dance: arms wave alternately at ~3Hz, legs kick wide
+    const dPhase = (now / 330) % (Math.PI * 2);
+    const aLeft  =  Math.sin(dPhase);
+    const aRight = -Math.sin(dPhase);
+    const ls     = Math.sin((now / 260) % (Math.PI * 2));
     _sfStroke(ctx, 0, -R * 1.9, 0, -R * 0.5);
-    // Arms up – V shape
+    _sfStroke(ctx, 0, -R * 1.55, -R * 0.9, -R * 1.55 + aLeft  * R * 1.1);
+    _sfStroke(ctx, 0, -R * 1.55,  R * 0.9, -R * 1.55 + aRight * R * 1.1);
+    _sfStroke(ctx, 0, -R * 0.5, -R * 0.7 + ls * R * 0.4, R * 0.6);
+    _sfStroke(ctx, 0, -R * 0.5,  R * 0.7 - ls * R * 0.4, R * 0.6);
+  } else if (celebrating) {
+    // Milestone celebration — arms up
+    _sfStroke(ctx, 0, -R * 1.9, 0, -R * 0.5);
     _sfStroke(ctx, 0, -R * 1.55, -R * 0.8, -R * 2.2);
     _sfStroke(ctx, 0, -R * 1.55,  R * 0.8, -R * 2.2);
-    // Legs slightly apart
     _sfStroke(ctx, 0, -R * 0.5, -R * 0.38, R * 0.55);
     _sfStroke(ctx, 0, -R * 0.5,  R * 0.38, R * 0.55);
-    // Milestone label
-    ctx.fillStyle   = '#00d4aa';
-    ctx.font        = 'bold 7px Outfit, sans-serif';
-    ctx.textAlign   = 'center';
+    ctx.fillStyle = '#00d4aa';
+    ctx.font      = 'bold 7px Outfit, sans-serif';
+    ctx.textAlign = 'center';
     ctx.fillText(_celebrationLabel, 0, -R * 3.05);
   } else {
-    // Running – legs and arms swing in alternating phase
-    const ls  = Math.sin(phase);
-    const as  = Math.sin(phase + Math.PI); // arms opposite legs
-    const lX  = ls * R * 0.6;
-    const aX  = as * R * 0.5;
-
-    // Body
+    // Running
+    const ls = Math.sin(phase);
+    const as = Math.sin(phase + Math.PI);
+    const lX = ls * R * 0.6;
+    const aX = as * R * 0.5;
     _sfStroke(ctx, 0, -R * 1.9, 0, -R * 0.5);
-    // Arms
     _sfStroke(ctx, 0, -R * 1.6,  aX, -R * 1.6 - R * 0.45);
     _sfStroke(ctx, 0, -R * 1.6, -aX, -R * 1.6 - R * 0.45);
-    // Legs
     _sfStroke(ctx, 0, -R * 0.5,  lX, -R * 0.5 + R * 0.75);
     _sfStroke(ctx, 0, -R * 0.5, -lX, -R * 0.5 + R * 0.75);
   }
@@ -283,7 +320,8 @@ const stickFigurePlugin = {
         }
       }
 
-      drawStickFigure(chart.ctx, headX, headY, now, ds.borderColor);
+      const isWinner = _finalCelebrating && dsIdx === _finalCelebDsIdx;
+      drawStickFigure(chart.ctx, headX, headY, now, ds.borderColor, isWinner);
     });
   },
 };
@@ -395,7 +433,10 @@ function renderProjChart() {
 
   const startAge = scenario.start_age || 25;
   const ages     = getAges(startAge);
-  const results  = toRender.map(s => calculatePath(s));
+  const results      = toRender.map(s => calculatePath(s));
+  const _winnerDsIdx = results
+    .map((r, i) => ({ i, val: r.path[r.path.length - 1] ?? -Infinity }))
+    .sort((a, b) => b.val - a.val)[0].i;
 
   // Store per-scenario rows for table view
   toRender.forEach((s, i) => { _tableRows[s.id] = results[i].rows; });
@@ -418,7 +459,7 @@ function renderProjChart() {
   });
 
   // Progressive line-draw animation — each point appears sequentially left to right
-  const totalDuration = 9000;
+  const totalDuration = _animDuration;
   const pointCount    = results[0]?.path?.length || 80;
   const delay         = totalDuration / pointCount;
   const animOptions   = _animateMode ? {
@@ -477,11 +518,12 @@ function renderProjChart() {
   if (_animateMode) {
     if (_sfAnimFrame) { cancelAnimationFrame(_sfAnimFrame); _sfAnimFrame = null; }
     setTimeout(() => {
-      const loopEnd = Date.now() + 3000;
+      _finalCelebrating = true;
+      _finalCelebDsIdx  = _winnerDsIdx;
       function sfLoop() {
         if (!_animateMode || !charts.proj) return;
         charts.proj.draw();
-        if (Date.now() < loopEnd) _sfAnimFrame = requestAnimationFrame(sfLoop);
+        _sfAnimFrame = requestAnimationFrame(sfLoop);
       }
       _sfAnimFrame = requestAnimationFrame(sfLoop);
     }, totalDuration + 200);

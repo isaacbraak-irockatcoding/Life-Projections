@@ -291,10 +291,10 @@ async function exportTikTok() {
   await new Promise(r => setTimeout(r, 100));
   toggleAnimateMode();
 
-  if (btn) { btn.textContent = '⏺ Recording… 13s'; btn.disabled = true; }
+  if (btn) { btn.textContent = `⏺ Recording… ${Math.round(DURATION / 1000)}s`; btn.disabled = true; }
 
-  const DURATION      = 13_000;
-  const CHART_ANIM_MS = 9_000; // synced to Chart.js totalDuration
+  const CHART_ANIM_MS = typeof _animDuration !== 'undefined' ? _animDuration : 9_000;
+  const DURATION      = CHART_ANIM_MS + 4_000; // 4s hold after chart finishes
   const startTime     = Date.now();
 
   recorder.start(200);
