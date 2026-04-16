@@ -36,23 +36,33 @@
     <div id="retirement-tally"></div>
 
     <div class="card">
-      <div class="chart-hdr">
-        <h3 style="margin-bottom:0;">Wealth Projection</h3>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <div class="range-btns">
-            <button id="view-btn-chart"    onclick="setViewMode('chart')"    class="range-btn active">📈 Chart</button>
-            <button id="view-btn-table"    onclick="setViewMode('table')"    class="range-btn">⊞ Table</button>
-            <button id="view-btn-cashflow" onclick="setViewMode('cashflow')" class="range-btn">≋ Cashflow</button>
-          </div>
-          <div class="range-btns">
-            <button onclick="setProjRange(5)"    id="rb-5"   class="range-btn">5y</button>
-            <button onclick="setProjRange(10)"   id="rb-10"  class="range-btn">10y</button>
-            <button onclick="setProjRange(20)"   id="rb-20"  class="range-btn">20y</button>
-            <button onclick="setProjRange(null)" id="rb-all" class="range-btn active">All</button>
-          </div>
-          <div class="range-btns">
-            <button id="compare-btn" onclick="toggleCompareMode()" class="range-btn">⊞ Compare</button>
-          </div>
+      <!-- Row 1: label -->
+      <h3 style="margin:0 0 10px;">Wealth Projection</h3>
+
+      <!-- Row 2: view mode + compare -->
+      <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
+        <div class="range-btns" style="flex:1;min-width:0;">
+          <button id="view-btn-chart"    onclick="setViewMode('chart')"    class="range-btn active" style="flex:1;">📈 Chart</button>
+          <button id="view-btn-table"    onclick="setViewMode('table')"    class="range-btn" style="flex:1;">⊞ Table</button>
+          <button id="view-btn-cashflow" onclick="setViewMode('cashflow')" class="range-btn" style="flex:1;">≋ Cash</button>
+          <button id="compare-btn"       onclick="toggleCompareMode()"     class="range-btn" style="flex:1;">⊞ Compare</button>
+        </div>
+      </div>
+
+      <!-- Row 3: time range -->
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
+        <div class="range-btns">
+          <button onclick="setProjRange(5)"    id="rb-5"   class="range-btn">5y</button>
+          <button onclick="setProjRange(10)"   id="rb-10"  class="range-btn">10y</button>
+          <button onclick="setProjRange(20)"   id="rb-20"  class="range-btn">20y</button>
+          <button onclick="setProjRange(null)" id="rb-all" class="range-btn active">All</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" id="rb-custom-val" min="1" max="99" placeholder="yrs"
+            style="width:48px;padding:3px 6px;font-size:11px;border-radius:6px;border:1px solid var(--border2);background:var(--surf);color:var(--text);font-family:inherit;"
+            oninput="setCustomRange(+this.value)"
+            onfocus="this.select()"/>
+          <span style="font-size:10px;color:var(--muted2);">custom</span>
         </div>
       </div>
       <!-- Empty state shown when no data filled in yet -->

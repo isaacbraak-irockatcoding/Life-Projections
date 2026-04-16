@@ -86,7 +86,25 @@ function toggleAnimateMode() {
 
 function setProjRange(years) {
   _projRange = years;
+  // Clear custom input when a preset is chosen
+  const ci = document.getElementById('rb-custom-val');
+  if (ci) ci.value = '';
   renderProjChart();
+  if (_viewMode === 'table')    renderProjTable();
+  if (_viewMode === 'cashflow') renderCashflowSummary();
+}
+
+function setCustomRange(years) {
+  if (!years || years < 1) return;
+  _projRange = years;
+  // Deactivate all preset range buttons
+  [5, 10, 20, null].forEach(r => {
+    const el = document.getElementById(r ? `rb-${r}` : 'rb-all');
+    if (el) el.classList.remove('active');
+  });
+  renderProjChart();
+  if (_viewMode === 'table')    renderProjTable();
+  if (_viewMode === 'cashflow') renderCashflowSummary();
 }
 
 function setViewMode(mode) {
