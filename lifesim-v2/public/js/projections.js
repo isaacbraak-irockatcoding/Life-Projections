@@ -303,6 +303,22 @@ function renderRetirementTally(toRender, results) {
   const el = document.getElementById('retirement-tally');
   if (!el) return;
 
+  // Update header net worth badge (active scenario only)
+  const nwWrap = document.getElementById('retirement-net-worth');
+  const nwVal  = document.getElementById('retirement-net-worth-value');
+  if (nwWrap && nwVal && toRender.length > 0) {
+    const s         = toRender[0];
+    const rows      = results[0].rows || [];
+    const retireAge = s.retire_age || 65;
+    const retireRow = rows.find(r => r.age >= retireAge) || rows[rows.length - 1] || {};
+    const netWorth  = retireRow.balance || 0;
+    nwVal.textContent = fmtM(netWorth);
+    nwVal.style.color = netWorth >= 0 ? '#00d4aa' : '#ff6b6b';
+    nwWrap.style.display = 'flex';
+  } else if (nwWrap) {
+    nwWrap.style.display = 'none';
+  }
+
   el.innerHTML = '<div class="retirement-tally-grid">' +
     toRender.map((s, i) => {
       const color     = s.color || PATH_COLORS[i % PATH_COLORS.length];
@@ -366,6 +382,8 @@ function renderProjChart() {
     }
     if (canvas) canvas.style.display = 'none';
     if (tallyEl) tallyEl.innerHTML = '';
+    const nwWrap = document.getElementById('retirement-net-worth');
+    if (nwWrap) nwWrap.style.display = 'none';
     document.getElementById('proj-breakeven').innerHTML = '';
     if (charts.proj) { charts.proj.destroy(); charts.proj = null; }
     return;
@@ -857,7 +875,7 @@ function renderActiveScenarioEditor() {
       <!-- Start Age + State -->
       <div class="field-row" style="margin-bottom:14px;">
         <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Your Current Age</label>
+          <label class="micro" style="display:block;margin-bottom:5px;">Starting Age</label>
           <input type="number" min="0" max="80" value="${s.start_age}" onchange="State.patchScenario({start_age:+this.value});renderActiveScenarioEditor();renderProjChart()"/>
         </div>
         <div class="field">
