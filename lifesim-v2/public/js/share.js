@@ -323,53 +323,61 @@ async function exportTikTok() {
       RW / 2, 144
     );
 
-    // Chart — scaled to full width, centered vertically
-    const pad    = 20;
-    const chartW = RW - pad * 2;
-    const chartH = Math.round(chartW * (srcCanvas.height / srcCanvas.width));
-    const chartY = Math.round((RH - chartH) / 2);
+    // Fixed layout: title block at top, stats panel pinned to bottom, chart fills middle
+    const pad    = 24;
+    const titleH = 170;
+    const rowH   = scenarios.length > 1 ? 118 : 140;
+    const statsH = scenarios.length * rowH + 72; // 72 = watermark zone
+    const availH = RH - titleH - statsH;
+
+    // Chart — fills the middle zone
+    const chartW  = RW - pad * 2;
+    const nativeR = srcCanvas.height / srcCanvas.width;
+    const chartH  = Math.min(availH - 16, Math.round(chartW * nativeR));
+    const chartY  = titleH + Math.round((availH - chartH) / 2);
     rc.drawImage(srcCanvas, pad, chartY, chartW, chartH);
 
-    // Animated scenario rows below chart
-    const progress = Math.min(1, elapsed / CHART_ANIM_MS);
-    const statsY   = chartY + chartH + 44;
-    const rowH     = scenarios.length > 1 ? 80 : 90;
+    // Subtle separator above stats panel
+    const panelTop = RH - statsH;
+    rc.fillStyle = 'rgba(255,255,255,0.04)';
+    rc.fillRect(0, panelTop, RW, statsH - 72);
+
+    // Animated scenario rows — pinned to bottom
+    const progress  = Math.min(1, elapsed / CHART_ANIM_MS);
+    const nwFontSz  = scenarios.length > 1 ? 58 : 72;
+    const nameFontSz = scenarios.length > 1 ? 22 : 26;
 
     scenarioStats.forEach((st, i) => {
-      const rowY   = statsY + i * rowH;
+      const rowTop = panelTop + i * rowH + 18;
       const live   = Math.round(st.netWorth * progress);
-      const dotClr = st.netWorth < 0 ? '#ff6b6b' : st.color;
-      const numClr = st.netWorth < 0 ? '#ff6b6b' : st.color;
+      const clr    = st.netWorth < 0 ? '#ff6b6b' : st.color;
 
-      // Color dot
-      rc.fillStyle = dotClr;
+      // Colored legend line (mimics chart line)
+      rc.strokeStyle = clr;
+      rc.lineWidth   = 6;
+      rc.lineCap     = 'round';
       rc.beginPath();
-      rc.arc(52, rowY, 14, 0, Math.PI * 2);
-      rc.fill();
+      rc.moveTo(pad, rowTop + 22);
+      rc.lineTo(pad + 52, rowTop + 22);
+      rc.stroke();
 
-      // Scenario name
+      // Big live net worth number
       rc.textAlign = 'left';
-      rc.fillStyle = '#dde3f5';
-      rc.font = `bold ${scenarios.length > 1 ? 24 : 28}px sans-serif`;
-      rc.fillText(st.name, 80, rowY + 2);
+      rc.fillStyle = clr;
+      rc.font      = `bold ${nwFontSz}px monospace`;
+      rc.fillText(fmtM(live), pad + 68, rowTop + nwFontSz * 0.72);
 
-      // Retire age label
-      rc.fillStyle = '#7a83a8';
-      rc.font = '19px sans-serif';
-      rc.fillText(`@ age ${st.retireAge}`, 80, rowY + 28);
-
-      // Animated net worth — right-aligned
-      rc.textAlign = 'right';
-      rc.fillStyle = numClr;
-      rc.font = `bold ${scenarios.length > 1 ? 42 : 52}px monospace`;
-      rc.fillText(fmtM(live), RW - 36, rowY + 8);
+      // Scenario name below the number
+      rc.fillStyle = '#9aa3c2';
+      rc.font      = `${nameFontSz}px sans-serif`;
+      rc.fillText(st.name, pad + 68, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
     });
 
     // Watermark
     rc.textAlign = 'center';
     rc.fillStyle = scenarioStats[0].color;
     rc.font = 'bold 20px sans-serif';
-    rc.fillText('lifesimfinance.com', RW / 2, RH - 56);
+    rc.fillText('lifesimfinance.com', RW / 2, RH - 22);
 
     requestAnimationFrame(drawFrame);
   }
