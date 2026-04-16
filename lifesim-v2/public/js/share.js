@@ -236,6 +236,23 @@ async function exportTikTok() {
   const srcCanvas = document.getElementById('projChart');
   if (!srcCanvas) { showToast('Chart not found', true); return; }
 
+  // Gather all active scenarios and pre-compute net worth at retirement for each
+  const scenarios = getToRender();
+  if (!scenarios.length) return;
+
+  const scenarioStats = scenarios.map(s => {
+    const result    = calculatePath(s);
+    const rows      = result.rows || [];
+    const retireAge = s.retire_age || 65;
+    const retireRow = rows.find(r => r.age >= retireAge) || rows[rows.length - 1] || {};
+    return {
+      name:      s.name,
+      color:     s.color || '#00d4aa',
+      retireAge,
+      netWorth:  retireRow.balance || 0,
+    };
+  });
+
   // 9:16 recording canvas — MUST be in the DOM for captureStream to work
   const RW = 720, RH = 1280;
   const recCanvas = document.createElement('canvas');
@@ -269,11 +286,6 @@ async function exportTikTok() {
     showToast('Saved! Upload the .webm file directly to TikTok.');
   };
 
-  // Overlay data
-  const result  = calculatePath(scenario);
-  const finalWl = result.path[result.path.length - 1];
-  const color   = scenario.color || '#00d4aa';
-
   // Reset + trigger animation
   if (_animateMode) toggleAnimateMode();
   await new Promise(r => setTimeout(r, 100));
@@ -281,8 +293,9 @@ async function exportTikTok() {
 
   if (btn) { btn.textContent = '⏺ Recording… 13s'; btn.disabled = true; }
 
-  const DURATION  = 13_000;
-  const startTime = Date.now();
+  const DURATION      = 13_000;
+  const CHART_ANIM_MS = 9_000; // synced to Chart.js totalDuration
+  const startTime     = Date.now();
 
   recorder.start(200);
 
@@ -300,12 +313,15 @@ async function exportTikTok() {
 
     // Title
     rc.textAlign = 'center';
-    rc.fillStyle = color;
+    rc.fillStyle = scenarioStats[0].color;
     rc.font = 'bold 38px sans-serif';
     rc.fillText('My Wealth Projection', RW / 2, 100);
     rc.fillStyle = '#7a83a8';
     rc.font = '24px sans-serif';
-    rc.fillText(scenario.name, RW / 2, 144);
+    rc.fillText(
+      scenarios.length > 1 ? `${scenarios.length} Scenarios Compared` : scenario.name,
+      RW / 2, 144
+    );
 
     // Chart — scaled to full width, centered vertically
     const pad    = 20;
@@ -314,17 +330,44 @@ async function exportTikTok() {
     const chartY = Math.round((RH - chartH) / 2);
     rc.drawImage(srcCanvas, pad, chartY, chartW, chartH);
 
-    // Stats below chart
-    const statsY = chartY + chartH + 48;
-    rc.fillStyle = '#dde3f5';
-    rc.font = 'bold 52px monospace';
-    rc.fillText(fmtM(finalWl), RW / 2, statsY);
-    rc.fillStyle = '#7a83a8';
-    rc.font = '22px sans-serif';
-    rc.fillText(`Retiring at ${scenario.retire_age}`, RW / 2, statsY + 44);
+    // Animated scenario rows below chart
+    const progress = Math.min(1, elapsed / CHART_ANIM_MS);
+    const statsY   = chartY + chartH + 44;
+    const rowH     = scenarios.length > 1 ? 80 : 90;
+
+    scenarioStats.forEach((st, i) => {
+      const rowY   = statsY + i * rowH;
+      const live   = Math.round(st.netWorth * progress);
+      const dotClr = st.netWorth < 0 ? '#ff6b6b' : st.color;
+      const numClr = st.netWorth < 0 ? '#ff6b6b' : st.color;
+
+      // Color dot
+      rc.fillStyle = dotClr;
+      rc.beginPath();
+      rc.arc(52, rowY, 14, 0, Math.PI * 2);
+      rc.fill();
+
+      // Scenario name
+      rc.textAlign = 'left';
+      rc.fillStyle = '#dde3f5';
+      rc.font = `bold ${scenarios.length > 1 ? 24 : 28}px sans-serif`;
+      rc.fillText(st.name, 80, rowY + 2);
+
+      // Retire age label
+      rc.fillStyle = '#7a83a8';
+      rc.font = '19px sans-serif';
+      rc.fillText(`@ age ${st.retireAge}`, 80, rowY + 28);
+
+      // Animated net worth — right-aligned
+      rc.textAlign = 'right';
+      rc.fillStyle = numClr;
+      rc.font = `bold ${scenarios.length > 1 ? 42 : 52}px monospace`;
+      rc.fillText(fmtM(live), RW - 36, rowY + 8);
+    });
 
     // Watermark
-    rc.fillStyle = color;
+    rc.textAlign = 'center';
+    rc.fillStyle = scenarioStats[0].color;
     rc.font = 'bold 20px sans-serif';
     rc.fillText('lifesimfinance.com', RW / 2, RH - 56);
 
