@@ -453,14 +453,16 @@ function calculatePath(scenario) {
       const netCashToPool = afterTax + ev.spouseIncome - debtPayments - ev.oneTime - ev.annual - totalAssetContribsNow - livingExpenses;
       savingsPool = savingsPool + netCashToPool;
     } else {
-      // Retirement: compound assets (no new contributions), withdraw from cash pool
+      // Retirement: compound assets (no new contributions), draw from savings pool.
+      // 4% rule covers baseline living; events and debts are deducted separately.
       if (retireBal === null) {
         retireBal   = netWorth;
         annualDrawn = retireBal * 0.04;
       }
-      rowExpenses = Math.round(annualDrawn);
+      debtPayments = getDebtPayments(scenario.debts, age, startAge);
+      rowExpenses = Math.round(livingExpenses + ev.annual + ev.oneTime + debtPayments);
       assetPools.forEach(a => { a.value = a.value * (1 + a.rate); });
-      savingsPool = savingsPool - annualDrawn;
+      savingsPool = savingsPool - annualDrawn - ev.oneTime - ev.annual - debtPayments;
     }
 
     // Appreciate homes at end of each year
@@ -515,7 +517,7 @@ function calculatePath(scenario) {
       spouseIncomeItems:     isRetired ? [] : (ev.spouseIncomeItems || []),
       assetInterestIncome,
       poolInterestIncome,
-      livingExpenses:        isRetired ? 0 : Math.round(livingExpenses),
+      livingExpenses:        Math.round(livingExpenses),
       tuitionDisbursement:   isRetired ? 0 : tuitionThisYear,
     });
   });

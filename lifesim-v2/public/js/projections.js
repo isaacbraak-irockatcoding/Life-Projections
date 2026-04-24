@@ -699,7 +699,7 @@ function renderCashflowSummary() {
     const capitalOpen   = !!_cashflowExpanded[`${s.id}-cf-capital`];
 
     const tableRows = rows.map(r => {
-      const totalCashIn    = r.isRetired ? (r.retirementWithdrawal || 0) : ((r.income || 0) + (r.spouseIncome || 0) + (r.tuitionDisbursement || 0));
+      const totalCashIn    = r.isRetired ? 0 : ((r.income || 0) + (r.spouseIncome || 0) + (r.tuitionDisbursement || 0));
       const totalRecurring = (r.interestExpense || 0)
                            + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0)
                            + (r.debtPrincipalPayments || 0)
@@ -715,7 +715,7 @@ function renderCashflowSummary() {
       // ── Year summary row ──
       html += `<tr class="cf-year-row">
         <td class="tbl-age">${r.age}</td>
-        <td class="tbl-pos">${fmtM(totalCashIn)}</td>
+        <td class="tbl-pos">${totalCashIn ? fmtM(totalCashIn) : '—'}</td>
         <td class="tbl-neg">${totalRecurring + totalCapital ? fmtM(totalRecurring + totalCapital) : '—'}</td>
         <td class="tbl-bal" style="color:${netColor};">${fmtM(netFlow)}</td>
       </tr>`;
@@ -723,12 +723,12 @@ function renderCashflowSummary() {
       // ── Cash In section ──
       html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'cashin')">
         <td class="tbl-age"><span class="bs-expand-arrow">${cashInOpen ? '▾' : '▸'}</span></td>
-        <td>Cash In — ${fmtM(totalCashIn)}</td>
+        <td>${r.isRetired ? 'Retired — no salary' : `Cash In — ${fmtM(totalCashIn)}`}</td>
         <td></td><td></td>
       </tr>`;
       if (cashInOpen) {
         if (r.isRetired) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Retirement Withdrawal</td><td class="tbl-pos">${fmtM(r.retirementWithdrawal || 0)}</td></tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="3" style="color:var(--muted2);">Retired — portfolio covers expenses (4% rule)</td></tr>`;
         } else {
           if ((r.income || 0) > 0) {
             html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Salary (after tax)</td><td class="tbl-pos">${fmtM(r.income || 0)}</td></tr>`;
