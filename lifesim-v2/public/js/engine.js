@@ -453,16 +453,17 @@ function calculatePath(scenario) {
       const netCashToPool = afterTax + ev.spouseIncome - debtPayments - ev.oneTime - ev.annual - totalAssetContribsNow - livingExpenses;
       savingsPool = savingsPool + netCashToPool;
     } else {
-      // Retirement: compound assets (no new contributions), draw from savings pool.
-      // 4% rule covers baseline living; events and debts are deducted separately.
+      // Retirement: assets compound at their return rates.
+      // Actual living expenses + events + debts are deducted from the savings pool each year.
+      // annualDrawn is locked at the first retirement year for the tally display only.
       if (retireBal === null) {
         retireBal   = netWorth;
-        annualDrawn = retireBal * 0.04;
+        annualDrawn = livingExpenses;
       }
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
-      rowExpenses = Math.round(livingExpenses + ev.annual + ev.oneTime + debtPayments);
+      rowExpenses  = Math.round(livingExpenses + ev.annual + ev.oneTime + debtPayments);
       assetPools.forEach(a => { a.value = a.value * (1 + a.rate); });
-      savingsPool = savingsPool - annualDrawn - ev.oneTime - ev.annual - debtPayments;
+      savingsPool  = savingsPool - livingExpenses - ev.oneTime - ev.annual - debtPayments;
     }
 
     // Appreciate homes at end of each year
@@ -512,7 +513,7 @@ function calculatePath(scenario) {
       assetContribBreakdown,
       eventOneTimeItems:     ev.oneTimeItems,
       eventAnnualItems:      ev.annualItems,
-      retirementWithdrawal:  isRetired ? Math.round(annualDrawn) : 0,
+      retirementWithdrawal:  isRetired ? Math.round(livingExpenses) : 0,
       spouseIncome:          isRetired ? 0 : Math.round(ev.spouseIncome || 0),
       spouseIncomeItems:     isRetired ? [] : (ev.spouseIncomeItems || []),
       assetInterestIncome,

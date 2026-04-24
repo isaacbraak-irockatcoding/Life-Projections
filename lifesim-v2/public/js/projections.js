@@ -20,6 +20,7 @@ const _tableExpanded = {};
 const _cashflowExpanded = {};
 // Compare mode: show all scenarios on chart simultaneously
 let _compareMode = false;
+let _compareIds  = new Set(); // which scenario IDs are selected in compare mode
 // Cache of fully-loaded scenario objects keyed by id
 const _scenarioCache = {};
 // Animate mode: progressive line draw on chart
@@ -53,20 +54,73 @@ function getToRender() {
   const active = State.getScenario();
   if (!_compareMode) return [active];
   _scenarioCache[State.getActiveId()] = active;
-  return State.getScenarioList().map(s => _scenarioCache[s.id]).filter(Boolean);
+  return State.getScenarioList()
+    .filter(s => _compareIds.has(s.id))
+    .map(s => _scenarioCache[s.id])
+    .filter(Boolean);
+}
+
+function renderComparePicker() {
+  const el = document.getElementById('compare-picker');
+  if (!el) return;
+  if (!_compareMode) { el.style.display = 'none'; return; }
+  const list = State.getScenarioList();
+  el.style.display = '';
+  el.innerHTML = `
+    <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;">Compare</div>
+    <div style="display:flex;flex-wrap:wrap;gap:5px;">
+      ${list.map((s, i) => {
+        const color   = s.color || PATH_COLORS[i % PATH_COLORS.length];
+        const checked = _compareIds.has(s.id);
+        return `<button
+          onclick="toggleCompareScenario(${s.id})"
+          style="display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1.5px solid ${color};
+                 background:${checked ? color + '22' : 'transparent'};color:${checked ? color : 'var(--muted2)'};
+                 font-size:12px;font-family:var(--font-ui);cursor:pointer;transition:all .15s;">
+          <span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></span>
+          ${s.name}${checked ? ' ✓' : ''}
+        </button>`;
+      }).join('')}
+    </div>`;
+}
+
+function toggleCompareScenario(id) {
+  if (_compareIds.has(id)) {
+    if (_compareIds.size > 1) _compareIds.delete(id); // keep at least one
+  } else {
+    _compareIds.add(id);
+    // Load it if not cached yet
+    if (!_scenarioCache[id]) {
+      api.getScenario(id).then(s => {
+        _scenarioCache[id] = s;
+        renderProjChart();
+        renderProjTable();
+        renderCashflowSummary();
+      });
+    }
+  }
+  renderComparePicker();
+  renderProjChart();
+  renderProjTable();
+  renderCashflowSummary();
 }
 
 async function toggleCompareMode() {
   _compareMode = !_compareMode;
   if (_compareMode) {
     _scenarioCache[State.getActiveId()] = State.getScenario();
+    // Default: select all scenarios
+    _compareIds = new Set(State.getScenarioList().map(s => s.id));
     await Promise.all(
       State.getScenarioList()
         .filter(s => !_scenarioCache[s.id])
         .map(async s => { _scenarioCache[s.id] = await api.getScenario(s.id); })
     );
+  } else {
+    _compareIds.clear();
   }
   document.getElementById('compare-btn')?.classList.toggle('active', _compareMode);
+  renderComparePicker();
   renderProjChart();
   renderProjTable();
   renderCashflowSummary();
@@ -397,7 +451,7 @@ function renderRetirementTally(toRender, results) {
           </div>
           <div class="tally-sep"></div>
           <div class="tally-item">
-            <div class="tally-label">Annual Draw</div>
+            <div class="tally-label">Annual Expenses</div>
             <div class="tally-value tally-draw">${fmtM(annual)}/yr</div>
           </div>
         </div>
@@ -916,7 +970,7 @@ function renderActiveScenarioEditor() {
 
       <div class="field" style="margin-bottom:14px;">
         <label class="micro" style="display:block;margin-bottom:5px;">Scenario Name</label>
-        <input type="text" value="${s.name}" oninput="State.patchScenario({name:this.value});updateScenarioChipName(this.value)"/>
+        <input type="text" value="${s.name}" oninput="State.patchScenario({name:this.value});updateScenarioChipName(this.value)" onblur="State.save()"/>
       </div>
 
       <!-- Color swatches -->

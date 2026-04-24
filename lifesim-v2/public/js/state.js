@@ -66,6 +66,12 @@ const State = (() => {
   function patchScenario(fields) {
     if (!_s.scenario) return;
     Object.assign(_s.scenario, fields);
+    // Keep the scenario list in sync so chips reflect name/color changes immediately
+    const idx = _s.scenarioList.findIndex(x => x.id === _s.scenario.id);
+    if (idx >= 0) {
+      if (fields.name  !== undefined) _s.scenarioList[idx].name  = fields.name;
+      if (fields.color !== undefined) _s.scenarioList[idx].color = fields.color;
+    }
     _setDirty(true);
   }
 
