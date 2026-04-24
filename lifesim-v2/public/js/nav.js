@@ -5,7 +5,7 @@
    debts → share → friends → auth → nav (last)
 ══════════════════════════════════════════════ */
 
-const TABS = ['proj', 'share', 'friends', 'explore', 'auth'];
+const TABS = ['proj', 'share', 'friends', 'explore', 'calc', 'auth'];
 
 // ── Guest signup prompt ────────────────────────────────────────────────────────
 let _guestPromptShown = false;
@@ -64,6 +64,7 @@ function switchTab(tab) {
     case 'share':   renderShareTab();   break;
     case 'friends': renderFriendsTab();  break;
     case 'explore': renderExploreTab();  break;
+    case 'calc':    renderCalcTab();     break;
     case 'auth':    renderAuthTab();     break;
   }
 }
