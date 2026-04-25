@@ -59,7 +59,6 @@ function _calcCompound(principal, monthly, annualRate, n, years) {
 }
 
 function _fmt(n) {
-  if (n >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
   return '$' + Math.round(n).toLocaleString();
 }
 

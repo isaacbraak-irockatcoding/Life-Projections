@@ -404,7 +404,7 @@ function calculatePath(scenario) {
     const lsSource        = activeLifestyle || scenario;
     const yearLivingTotal = (lsSource.annual_expenses || 0) + calcLivingExpenses(lsSource);
     const yearHousingCost = calcHousingCost(lsSource);
-    const livingExpenses  = (yearLivingTotal - (isRenting ? 0 : yearHousingCost)) * Math.pow(1.03, yearsElapsed);
+    const livingExpenses  = (yearLivingTotal - (isRenting ? 0 : yearHousingCost)) * Math.pow(1.02, yearsElapsed);
 
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;

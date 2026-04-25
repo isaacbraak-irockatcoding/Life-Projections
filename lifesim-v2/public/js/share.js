@@ -229,14 +229,12 @@ async function exportTikTok() {
 
   const btn = document.getElementById('tiktok-btn');
 
-  // Switch to projections tab so chart is live and animatable
   switchTab('proj');
   await new Promise(r => setTimeout(r, 400));
 
   const srcCanvas = document.getElementById('projChart');
   if (!srcCanvas) { showToast('Chart not found', true); return; }
 
-  // Gather all active scenarios and pre-compute net worth at retirement for each
   const scenarios = getToRender();
   if (!scenarios.length) return;
 
@@ -246,14 +244,13 @@ async function exportTikTok() {
     const retireAge = s.retire_age || 65;
     const retireRow = rows.find(r => r.age >= retireAge) || rows[rows.length - 1] || {};
     return {
-      name:      s.name,
-      color:     s.color || '#00d4aa',
+      name:     s.name,
+      color:    s.color || '#00d4aa',
       retireAge,
-      netWorth:  retireRow.balance || 0,
+      netWorth: retireRow.balance || 0,
     };
   });
 
-  // 9:16 recording canvas — MUST be in the DOM for captureStream to work
   const RW = 720, RH = 1280;
   const recCanvas = document.createElement('canvas');
   recCanvas.width  = RW;
@@ -262,56 +259,22 @@ async function exportTikTok() {
   document.body.appendChild(recCanvas);
   const rc = recCanvas.getContext('2d');
 
-  // WebM is the only reliably supported format for MediaRecorder
-  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-    ? 'video/webm;codecs=vp9'
-    : 'video/webm';
+  const CHART_ANIM_MS = typeof _animDuration !== 'undefined' ? _animDuration : 9_000;
+  const DURATION      = CHART_ANIM_MS + 4_000;
+  const filename      = `lifesim-${(scenario.name || 'projection').replace(/\s+/g, '-').toLowerCase()}`;
 
-  const stream   = recCanvas.captureStream(30);
-  const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
-  const chunks   = [];
-
-  recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-  recorder.onstop = () => {
-    recCanvas.remove();
-    const blob = new Blob(chunks, { type: 'video/webm' });
-    if (blob.size < 1000) { showToast('Recording was empty — try again', true); return; }
-    const url = URL.createObjectURL(blob);
-    const a   = document.createElement('a');
-    a.href     = url;
-    a.download = `lifesim-${(scenario.name || 'projection').replace(/\s+/g, '-').toLowerCase()}.webm`;
-    a.click();
-    URL.revokeObjectURL(url);
-    if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
-    showToast('Saved! Upload the .webm file directly to TikTok.');
-  };
-
-  // Reset + trigger animation
   if (_animateMode) toggleAnimateMode();
   await new Promise(r => setTimeout(r, 100));
   toggleAnimateMode();
 
-  if (btn) { btn.textContent = `⏺ Recording… ${Math.round(DURATION / 1000)}s`; btn.disabled = true; }
+  if (btn) { btn.textContent = '⏺ Recording… 0%'; btn.disabled = true; }
 
-  const CHART_ANIM_MS = typeof _animDuration !== 'undefined' ? _animDuration : 9_000;
-  const DURATION      = CHART_ANIM_MS + 4_000; // 4s hold after chart finishes
-  const startTime     = Date.now();
+  const startTime = Date.now();
 
-  recorder.start(200);
-
-  function drawFrame() {
-    const elapsed = Date.now() - startTime;
-    if (elapsed > DURATION) {
-      recorder.stop();
-      return;
-    }
-
-    if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
-
+  function _drawContents(elapsed) {
     rc.fillStyle = '#07080f';
     rc.fillRect(0, 0, RW, RH);
 
-    // Title
     rc.textAlign = 'center';
     rc.fillStyle = scenarioStats[0].color;
     rc.font = 'bold 38px sans-serif';
@@ -323,28 +286,24 @@ async function exportTikTok() {
       RW / 2, 144
     );
 
-    // Fixed layout: title block at top, stats panel pinned to bottom, chart fills middle
     const pad    = 24;
     const titleH = 170;
     const rowH   = scenarios.length > 1 ? 118 : 140;
-    const statsH = scenarios.length * rowH + 72; // 72 = watermark zone
+    const statsH = scenarios.length * rowH + 72;
     const availH = RH - titleH - statsH;
 
-    // Chart — fills the middle zone
     const chartW  = RW - pad * 2;
     const nativeR = srcCanvas.height / srcCanvas.width;
     const chartH  = Math.min(availH - 16, Math.round(chartW * nativeR));
     const chartY  = titleH + Math.round((availH - chartH) / 2);
     rc.drawImage(srcCanvas, pad, chartY, chartW, chartH);
 
-    // Subtle separator above stats panel
     const panelTop = RH - statsH;
     rc.fillStyle = 'rgba(255,255,255,0.04)';
     rc.fillRect(0, panelTop, RW, statsH - 72);
 
-    // Animated scenario rows — pinned to bottom
-    const progress  = Math.min(1, elapsed / CHART_ANIM_MS);
-    const nwFontSz  = scenarios.length > 1 ? 58 : 72;
+    const progress   = Math.min(1, elapsed / CHART_ANIM_MS);
+    const nwFontSz   = scenarios.length > 1 ? 58 : 72;
     const nameFontSz = scenarios.length > 1 ? 22 : 26;
 
     scenarioStats.forEach((st, i) => {
@@ -352,7 +311,6 @@ async function exportTikTok() {
       const live   = Math.round(st.netWorth * progress);
       const clr    = st.netWorth < 0 ? '#ff6b6b' : st.color;
 
-      // Colored legend line (mimics chart line)
       rc.strokeStyle = clr;
       rc.lineWidth   = 6;
       rc.lineCap     = 'round';
@@ -361,28 +319,112 @@ async function exportTikTok() {
       rc.lineTo(pad + 52, rowTop + 22);
       rc.stroke();
 
-      // Big live net worth number
       rc.textAlign = 'left';
       rc.fillStyle = clr;
       rc.font      = `bold ${nwFontSz}px monospace`;
       rc.fillText(fmtM(live), pad + 68, rowTop + nwFontSz * 0.72);
 
-      // Scenario name below the number
       rc.fillStyle = '#9aa3c2';
       rc.font      = `${nameFontSz}px sans-serif`;
       rc.fillText(st.name, pad + 68, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
     });
 
-    // Watermark
     rc.textAlign = 'center';
     rc.fillStyle = scenarioStats[0].color;
     rc.font = 'bold 20px sans-serif';
     rc.fillText('lifesimfinance.com', RW / 2, RH - 22);
-
-    requestAnimationFrame(drawFrame);
   }
 
-  requestAnimationFrame(drawFrame);
+  function _finishExport(blob, ext) {
+    recCanvas.remove();
+    if (blob.size < 1000) { showToast('Recording was empty — try again', true); return; }
+    if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+    const fname  = filename + ext;
+    const file   = new File([blob], fname, { type: blob.type });
+    const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
+    if (mobile && navigator.canShare?.({ files: [file] })) {
+      navigator.share({ files: [file], title: 'My Wealth Projection' })
+        .catch(() => _blobDownload(blob, fname));
+    } else {
+      _blobDownload(blob, fname);
+    }
+    showToast('Saved! Upload the file to TikTok.');
+  }
+
+  // ── Path A: WebCodecs → H.264/MP4  (iOS 16.4+, Chrome 94+) ─────────────
+  if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
+    const target  = new Mp4Muxer.ArrayBufferTarget();
+    const muxer   = new Mp4Muxer.Muxer({
+      target,
+      video:     { codec: 'avc', width: RW, height: RH },
+      fastStart: 'in-memory',
+    });
+    const encoder = new VideoEncoder({
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+      error:  e => console.error('VideoEncoder:', e),
+    });
+    encoder.configure({
+      codec:     'avc1.4d001f',
+      width:     RW,
+      height:    RH,
+      bitrate:   6_000_000,
+      framerate: 30,
+    });
+
+    function drawFrameMP4() {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > DURATION) {
+        encoder.flush().then(() => {
+          muxer.finalize();
+          _finishExport(new Blob([target.buffer], { type: 'video/mp4' }), '.mp4');
+        });
+        return;
+      }
+      if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
+      _drawContents(elapsed);
+      const vf = new VideoFrame(recCanvas, { timestamp: Math.round(elapsed * 1000) });
+      encoder.encode(vf, { keyFrame: elapsed < 100 });
+      vf.close();
+      requestAnimationFrame(drawFrameMP4);
+    }
+    requestAnimationFrame(drawFrameMP4);
+
+  // ── Path B: MediaRecorder → WebM  (desktop Chrome / Firefox) ────────────
+  } else if (typeof MediaRecorder !== 'undefined') {
+    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+      ? 'video/webm;codecs=vp9'
+      : 'video/webm';
+    const stream   = recCanvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+    const chunks   = [];
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => _finishExport(new Blob(chunks, { type: 'video/webm' }), '.webm');
+    recorder.start(200);
+
+    function drawFrameWebM() {
+      const elapsed = Date.now() - startTime;
+      if (elapsed > DURATION) { recorder.stop(); return; }
+      if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
+      _drawContents(elapsed);
+      requestAnimationFrame(drawFrameWebM);
+    }
+    requestAnimationFrame(drawFrameWebM);
+
+  // ── Path C: No API available ─────────────────────────────────────────────
+  } else {
+    recCanvas.remove();
+    if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+    showToast("Video export isn't supported here — use your phone's screen recorder instead.", true);
+  }
+}
+
+function _blobDownload(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a   = document.createElement('a');
+  a.href     = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(str) {

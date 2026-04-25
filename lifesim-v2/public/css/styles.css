@@ -762,7 +762,7 @@ input[type=range] {
   color: var(--text);
   font-family: var(--font-num);
   font-size: 14px;
-  padding: 9px 12px 9px 24px;
+  padding: 9px 12px 9px 30px;
   outline: none;
   transition: border-color .15s;
 }

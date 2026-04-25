@@ -413,22 +413,6 @@ function renderRetirementTally(toRender, results) {
   const el = document.getElementById('retirement-tally');
   if (!el) return;
 
-  // Update header net worth badge (active scenario only)
-  const nwWrap = document.getElementById('retirement-net-worth');
-  const nwVal  = document.getElementById('retirement-net-worth-value');
-  if (nwWrap && nwVal && toRender.length > 0) {
-    const s         = toRender[0];
-    const rows      = results[0].rows || [];
-    const retireAge = s.retire_age || 65;
-    const retireRow = rows.find(r => r.age >= retireAge) || rows[rows.length - 1] || {};
-    const netWorth  = retireRow.balance || 0;
-    nwVal.textContent = fmtM(netWorth);
-    nwVal.style.color = netWorth >= 0 ? '#00d4aa' : '#ff6b6b';
-    nwWrap.style.display = 'flex';
-  } else if (nwWrap) {
-    nwWrap.style.display = 'none';
-  }
-
   el.innerHTML = '<div class="retirement-tally-grid">' +
     toRender.map((s, i) => {
       const color     = s.color || PATH_COLORS[i % PATH_COLORS.length];
@@ -492,9 +476,7 @@ function renderProjChart() {
     }
     if (canvas) canvas.style.display = 'none';
     if (tallyEl) tallyEl.innerHTML = '';
-    const nwWrap = document.getElementById('retirement-net-worth');
-    if (nwWrap) nwWrap.style.display = 'none';
-    document.getElementById('proj-breakeven').innerHTML = '';
+document.getElementById('proj-breakeven').innerHTML = '';
     if (charts.proj) { charts.proj.destroy(); charts.proj = null; }
     return;
   }
@@ -1420,32 +1402,17 @@ function renderActiveScenarioEditor() {
       ${secHdr('living', 'Lifestyle', (s.lifestyles||[]).length || '', 'toggleLiving()')}
       <div class="sec-body" style="display:${_openSections.living ? '' : 'none'};">
 
-        <!-- Rent timing — scenario-level -->
-        <div class="field-row" style="margin-bottom:10px;">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Rent Start Age</label>
-            <input type="number" min="16" max="80" value="${s.rent_start_age != null ? s.rent_start_age : (s.start_age || 25)}"
-              onchange="State.patchScenario({rent_start_age:+this.value});renderProjChart()"/>
-          </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Rent End Age</label>
-            <input type="number" min="16" max="80" value="${s.rent_end_age != null ? s.rent_end_age : ''}"
-              placeholder="— (house purchase)"
-              onchange="State.patchScenario({rent_end_age:this.value?+this.value:null});renderProjChart()"/>
-          </div>
-        </div>
-        <p class="micro" style="color:var(--muted2);margin-bottom:12px;text-transform:none;letter-spacing:0;font-size:11px;">
-          Rent stops automatically when you add a House Purchase life event. Set End Age to override.
-        </p>
-
         <!-- Lifestyle period cards -->
         ${(() => {
           const lifestyles = (s.lifestyles || []).slice().sort((a, b) => a.start_age - b.start_age);
           return `
         ${lifestyles.length === 0 ? `<p class="micro" style="color:var(--muted2);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Add lifestyle periods below. Each period sets your living expenses from that age onward.</p>` : ''}
-        ${lifestyles.map((l, i) => `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
+        ${lifestyles.map((l, i) => {
+          const nextStart = lifestyles[i + 1]?.start_age;
+          const ageRange  = nextStart ? `Ages ${l.start_age}–${nextStart}` : `Ages ${l.start_age}–∞`;
+          return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-              <span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">Period ${i+1} — Age ${l.start_age}+</span>
+              <span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">Period ${i+1} — ${ageRange}</span>
               <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteLifestyle(${l.id})">✕</button>
             </div>
             <div class="field" style="margin-bottom:10px;">
@@ -1529,7 +1496,8 @@ function renderActiveScenarioEditor() {
               <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Annual Living</span>
               <span style="font-size:12px;font-weight:600;color:var(--accent);">${fmtM((l.annual_expenses||0) + calcLivingExpensesUI(l))}</span>
             </div>
-          </div>`).join('')}
+          </div>`;
+        }).join('')}
         <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:16px;" onclick="addLifestyle()">+ Add Lifestyle Period</button>`;
         })()}
 

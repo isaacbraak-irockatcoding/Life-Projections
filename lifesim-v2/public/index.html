@@ -16,11 +16,7 @@
 <!-- ═══════════════ APP HEADER ═══════════════ -->
 <header class="app-header" id="app-header" style="display:none;">
   <img src="/images/logo.jpeg" alt="LifeSim Finance" style="height:32px;object-fit:contain;border-radius:6px;"/>
-  <div id="retirement-net-worth" style="display:none;flex-direction:column;align-items:flex-end;line-height:1.2;">
-    <span style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.05em;">Net Worth at Retirement</span>
-    <span id="retirement-net-worth-value" style="font-size:15px;font-weight:700;"></span>
-  </div>
-  <button class="save-btn" id="save-btn" onclick="State.save().then(()=>showToast('Saved'))">Saved</button>
+<button class="save-btn" id="save-btn" onclick="State.save().then(()=>showToast('Saved'))">Saved</button>
 </header>
 
 <!-- ═══════════════ AUTH SCREEN ═══════════════ -->
@@ -145,6 +141,7 @@
 </nav>
 
 <!-- Script load order is strict -->
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5/build/mp4-muxer.js"></script>
 <script src="/js/data.js?v=2"></script>
 <script src="/js/api.js"></script>
 <script src="/js/state.js"></script>
