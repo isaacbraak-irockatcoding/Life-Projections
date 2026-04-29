@@ -335,9 +335,32 @@ async function exportTikTok() {
     rc.fillText('lifesimfinance.com', RW / 2, RH - 22);
   }
 
-  function _finishExport(blob, ext) {
+  async function _finishExport(blob, ext) {
     recCanvas.remove();
-    if (blob.size < 1000) { showToast('Recording was empty — try again', true); return; }
+    if (blob.size < 1000) {
+      if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+      showToast('Recording was empty — try again', true);
+      return;
+    }
+
+    const token = api.getToken();
+    if (token) {
+      if (btn) btn.textContent = '⬆ Uploading clip…';
+      try {
+        const res = await fetch('/api/clips', {
+          method: 'POST',
+          headers: { 'Content-Type': blob.type, 'Authorization': `Bearer ${token}` },
+          body: blob,
+        });
+        if (res.ok) {
+          const { url } = await res.json();
+          if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+          _showClipModal(url);
+          return;
+        }
+      } catch {}
+    }
+
     if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
     const fname  = filename + ext;
     const file   = new File([blob], fname, { type: blob.type });
@@ -425,6 +448,64 @@ function _blobDownload(blob, filename) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function _showClipModal(url) {
+  const mobile  = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  const card = document.createElement('div');
+  card.style.cssText = 'background:var(--card,#12152a);border-radius:16px;padding:28px;max-width:360px;width:100%;text-align:center;box-shadow:0 8px 40px rgba(0,0,0,.6);';
+  card.innerHTML = `
+    <div style="font-size:36px;margin-bottom:12px;">🎬</div>
+    <h3 style="margin:0 0 8px;font-size:18px;">Your clip is ready!</h3>
+    <p style="font-size:12px;color:var(--muted2,#7a83a8);margin:0 0 16px;">Link expires in 24 hours</p>
+    <div id="_clip-url-display" style="background:rgba(255,255,255,.05);border-radius:8px;padding:10px 12px;word-break:break-all;font-size:11px;color:var(--teal,#00d4aa);text-align:left;margin-bottom:16px;"></div>
+    <div id="_clip-btns" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"></div>
+    ${mobile ? '<p style="font-size:11px;color:var(--muted2,#7a83a8);margin:14px 0 0;">Tap "Save Video" → hold the video → "Save to Photos"</p>' : ''}`;
+
+  card.querySelector('#_clip-url-display').textContent = url;
+
+  const btns = card.querySelector('#_clip-btns');
+
+  if (mobile) {
+    const saveBtn = document.createElement('a');
+    saveBtn.href = url;
+    saveBtn.target = '_blank';
+    saveBtn.rel = 'noopener';
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.style.textDecoration = 'none';
+    saveBtn.textContent = 'Save Video';
+    btns.appendChild(saveBtn);
+  } else {
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'btn btn-primary';
+    copyBtn.textContent = 'Copy Link';
+    copyBtn.onclick = () =>
+      navigator.clipboard.writeText(url)
+        .then(() => showToast('Link copied!'), () => showToast('Copy failed', true));
+    btns.appendChild(copyBtn);
+
+    const openBtn = document.createElement('a');
+    openBtn.href = url;
+    openBtn.target = '_blank';
+    openBtn.rel = 'noopener';
+    openBtn.className = 'btn btn-ghost';
+    openBtn.style.textDecoration = 'none';
+    openBtn.textContent = 'Open';
+    btns.appendChild(openBtn);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-ghost';
+  closeBtn.textContent = 'Close';
+  closeBtn.onclick = () => overlay.remove();
+  btns.appendChild(closeBtn);
+
+  overlay.appendChild(card);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
 }
 
 function escapeHtml(str) {

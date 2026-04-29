@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 const { errorHandler } = require('./middleware/error');
@@ -9,11 +10,14 @@ const eventsRoutes = require('./routes/events');
 const assetsRoutes = require('./routes/assets');
 const debtsRoutes = require('./routes/debts');
 const shareRoutes = require('./routes/share');
+const clipsRoutes = require('./routes/clips');
 const friendsRoutes = require('./routes/friends');
 const groupsRoutes  = require('./routes/groups');
 const careersRoutes = require('./routes/careers');
 const schoolsRoutes     = require('./routes/schools');
 const lifestylesRoutes  = require('./routes/lifestyles');
+
+fs.mkdirSync(path.join(__dirname, 'clips'), { recursive: true });
 
 const app = express();
 
@@ -29,6 +33,7 @@ app.use('/api/scenarios', lifestylesRoutes);
 app.use('/api/scenarios', assetsRoutes);
 app.use('/api/scenarios', debtsRoutes);
 app.use('/api', shareRoutes);
+app.use('/api', clipsRoutes);
 app.use('/api/friends', friendsRoutes);
 app.use('/api/groups',  groupsRoutes);
 
