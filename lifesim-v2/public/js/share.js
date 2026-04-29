@@ -362,16 +362,7 @@ async function exportTikTok() {
     }
 
     if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
-    const fname  = filename + ext;
-    const file   = new File([blob], fname, { type: blob.type });
-    const mobile = /iPhone|iPad|Android/i.test(navigator.userAgent);
-    if (mobile && navigator.canShare?.({ files: [file] })) {
-      navigator.share({ files: [file], title: 'My Wealth Projection' })
-        .catch(() => _blobDownload(blob, fname));
-    } else {
-      _blobDownload(blob, fname);
-    }
-    showToast('Saved! Upload the file to TikTok.');
+    _showVideoPlayer(blob, filename + ext);
   }
 
   // ── Path A: WebCodecs → H.264/MP4  (iOS 16.4+, Chrome 94+) ─────────────
@@ -448,6 +439,51 @@ function _blobDownload(blob, filename) {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+function _showVideoPlayer(blob, fname) {
+  const blobUrl = URL.createObjectURL(blob);
+  const mobile  = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;';
+
+  const video = document.createElement('video');
+  video.src        = blobUrl;
+  video.controls   = true;
+  video.playsInline = true;
+  video.autoplay   = true;
+  video.style.cssText = 'max-width:300px;max-height:55vh;border-radius:12px;background:#000;';
+
+  const hint = document.createElement('p');
+  hint.style.cssText = 'color:#9aa3c2;font-size:12px;text-align:center;margin:0;line-height:1.6;';
+  hint.textContent = mobile
+    ? 'Hold the video → "Save to Photos" to keep it on your phone.'
+    : 'Right-click the video → "Save video as…" to download.';
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display:flex;gap:10px;';
+
+  if (!mobile) {
+    const dlBtn = document.createElement('a');
+    dlBtn.href     = blobUrl;
+    dlBtn.download = fname;
+    dlBtn.className = 'btn btn-primary';
+    dlBtn.style.textDecoration = 'none';
+    dlBtn.textContent = 'Download';
+    row.appendChild(dlBtn);
+  }
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className   = 'btn btn-ghost';
+  closeBtn.textContent = 'Close';
+  closeBtn.onclick = () => { overlay.remove(); URL.revokeObjectURL(blobUrl); };
+  row.appendChild(closeBtn);
+
+  overlay.append(video, hint, row);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => {
+    if (e.target === overlay) { overlay.remove(); URL.revokeObjectURL(blobUrl); }
+  });
 }
 
 function _showClipModal(url) {
