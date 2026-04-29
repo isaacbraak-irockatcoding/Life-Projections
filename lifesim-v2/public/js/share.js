@@ -288,71 +288,95 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
   const nPts = validPaths[0]?.length ?? 0;
   if (nPts < 2) return;
 
-  // path index = age (getAges returns 0..85), so startIdx is the starting age
   const startAge = startIdx;
 
-  let minVal = 0, maxVal = 1;
+  // Data range — always include $0 as baseline
+  let rawMin = 0, rawMax = 1;
   for (const path of validPaths)
-    for (const v of path) { if (v < minVal) minVal = v; if (v > maxVal) maxVal = v; }
+    for (const v of path) { if (v < rawMin) rawMin = v; if (v > rawMax) rawMax = v; }
 
-  // Pad the range slightly so lines don't touch the edges
-  const range = maxVal - minVal || 1;
-  const pMin = minVal - range * 0.04;
-  const pMax = maxVal + range * 0.08;
+  // Compute a "nice" tick interval targeting ~5 ticks
+  const span = rawMax - Math.min(rawMin, 0);
+  const rawStep = span / 5;
+  const mag  = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+  const norm = rawStep / mag;
+  const niceStep = norm < 1.5 ? 1 : norm < 3.5 ? 2.5 : norm < 7.5 ? 5 : 10;
+  const interval = niceStep * mag;
+
+  // Snap tick bounds to interval; $0 always included
+  const tickMin = Math.min(0, Math.floor(rawMin / interval) * interval);
+  const tickMax = Math.ceil(rawMax / interval) * interval;
+  const ticks   = [];
+  for (let v = tickMin; v <= tickMax + interval * 0.01; v += interval) ticks.push(Math.round(v));
+
+  // Visible range: pad below so $0 line stays well above x-axis labels
+  const pMin   = tickMin - interval * 0.6;
+  const pMax   = tickMax + interval * 0.3;
   const pRange = pMax - pMin;
 
-  // Reserve margins for axis labels
-  const lm = 70, bm = 36;
-  const cx = x + lm, cy = y, cw = w - lm, ch = h - bm;
+  // Layout margins — generous left for labels, bottom for age + "Age" label
+  const lm = 92, bm = 70, tm = 14, rm = 14;
+  const cx = x + lm, cy = y + tm, cw = w - lm - rm, ch = h - bm - tm;
 
   const pxFn = (i) => cx + (i / (nPts - 1)) * cw;
   const pyFn = (v) => cy + ch - ((v - pMin) / pRange) * ch;
 
   rc.save();
 
-  // Y-axis ticks + labels
-  const nTicks = 5;
-  for (let t = 0; t <= nTicks; t++) {
-    const val = pMin + (t / nTicks) * pRange;
-    const gy  = pyFn(val);
-    rc.strokeStyle = 'rgba(255,255,255,0.07)';
-    rc.lineWidth = 1;
-    rc.setLineDash([4, 4]);
+  // Y-axis gridlines + labels
+  for (const val of ticks) {
+    const gy     = pyFn(val);
+    const isZero = val === 0;
+    if (gy < cy - 4 || gy > cy + ch + 4) continue;
+
+    rc.strokeStyle = isZero ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.07)';
+    rc.lineWidth   = isZero ? 1.5 : 1;
+    rc.setLineDash(isZero ? [5, 4] : [3, 5]);
     rc.beginPath(); rc.moveTo(cx, gy); rc.lineTo(cx + cw, gy); rc.stroke();
     rc.setLineDash([]);
-    rc.fillStyle = '#7a83a8';
-    rc.font = '22px sans-serif';
-    rc.textAlign = 'right';
-    rc.fillText(fmtM(Math.round(val)), cx - 8, gy + 7);
+
+    // Only draw label when it won't collide with x-axis area (needs 20px clearance)
+    if (gy < cy + ch - 20) {
+      rc.fillStyle = isZero ? '#b0b8d0' : '#5e6882';
+      rc.font      = `${isZero ? 'bold ' : ''}20px sans-serif`;
+      rc.textAlign = 'right';
+      rc.fillText(fmtM(val), cx - 12, gy + 7);
+    }
   }
 
-  // $0 reference line when chart spans negative values
-  if (pMin < 0 && pMax > 0) {
-    const zy = pyFn(0);
-    rc.strokeStyle = 'rgba(255,255,255,0.22)';
-    rc.lineWidth = 1.5;
-    rc.setLineDash([5, 3]);
-    rc.beginPath(); rc.moveTo(cx, zy); rc.lineTo(cx + cw, zy); rc.stroke();
-    rc.setLineDash([]);
-  }
-
-  // X-axis labels (ages)
-  rc.fillStyle = '#7a83a8';
-  rc.font = '22px sans-serif';
+  // "Net Worth" axis title — rotated 90°, left of y-labels
+  rc.save();
+  rc.translate(x + 20, cy + ch / 2);
+  rc.rotate(-Math.PI / 2);
+  rc.fillStyle = '#424b65';
+  rc.font      = '19px sans-serif';
   rc.textAlign = 'center';
+  rc.fillText('Net Worth', 0, 0);
+  rc.restore();
+
+  // X-axis tick marks + age numbers
+  rc.fillStyle  = '#5e6882';
+  rc.font       = '20px sans-serif';
+  rc.textAlign  = 'center';
   const nXTicks = 5;
   for (let t = 0; t <= nXTicks; t++) {
     const i  = Math.round((t / nXTicks) * (nPts - 1));
     const gx = pxFn(i);
-    rc.strokeStyle = 'rgba(255,255,255,0.15)';
-    rc.lineWidth = 1;
-    rc.beginPath(); rc.moveTo(gx, cy + ch); rc.lineTo(gx, cy + ch + 6); rc.stroke();
-    rc.fillText(`${startAge + i}`, gx, cy + ch + 28);
+    rc.strokeStyle = 'rgba(255,255,255,0.12)';
+    rc.lineWidth   = 1;
+    rc.beginPath(); rc.moveTo(gx, cy + ch); rc.lineTo(gx, cy + ch + 7); rc.stroke();
+    rc.fillText(`${startAge + i}`, gx, cy + ch + 30);
   }
+
+  // "Age" axis title
+  rc.fillStyle = '#424b65';
+  rc.font      = '19px sans-serif';
+  rc.textAlign = 'center';
+  rc.fillText('Age', cx + cw / 2, cy + ch + 56);
 
   rc.restore();
 
-  // Draw each scenario line with catmull-rom smooth curves (tension 0.35, matching Chart.js)
+  // Lines — catmull-rom bezier (tension 0.35, matching Chart.js)
   const tension = 0.35;
   validPaths.forEach((path, si) => {
     const color = stats[si].color;
@@ -361,25 +385,19 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
     for (let i = 0; i < shown; i++) pts.push({ x: pxFn(i), y: pyFn(path[i]) });
     if (pts.length < 2) return;
 
-    function drawSpline(doFill) {
-      rc.beginPath();
-      if (doFill) { rc.moveTo(pts[0].x, cy + ch); rc.lineTo(pts[0].x, pts[0].y); }
-      else        { rc.moveTo(pts[0].x, pts[0].y); }
-      for (let i = 1; i < pts.length; i++) {
-        const p0 = pts[Math.max(0, i - 2)];
-        const p1 = pts[i - 1];
-        const p2 = pts[i];
-        const p3 = pts[Math.min(pts.length - 1, i + 1)];
-        rc.bezierCurveTo(
-          p1.x + (p2.x - p0.x) * tension / 2, p1.y + (p2.y - p0.y) * tension / 2,
-          p2.x - (p3.x - p1.x) * tension / 2, p2.y - (p3.y - p1.y) * tension / 2,
-          p2.x, p2.y
-        );
-      }
-      if (doFill) { rc.lineTo(pts[pts.length - 1].x, cy + ch); rc.closePath(); }
+    rc.beginPath();
+    rc.moveTo(pts[0].x, pts[0].y);
+    for (let i = 1; i < pts.length; i++) {
+      const p0 = pts[Math.max(0, i - 2)];
+      const p1 = pts[i - 1];
+      const p2 = pts[i];
+      const p3 = pts[Math.min(pts.length - 1, i + 1)];
+      rc.bezierCurveTo(
+        p1.x + (p2.x - p0.x) * tension / 2, p1.y + (p2.y - p0.y) * tension / 2,
+        p2.x - (p3.x - p1.x) * tension / 2, p2.y - (p3.y - p1.y) * tension / 2,
+        p2.x, p2.y
+      );
     }
-
-    drawSpline(false);
     rc.strokeStyle = color;
     rc.lineWidth   = 3.5;
     rc.lineJoin    = 'round';
@@ -394,9 +412,8 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
   const winnerIdx = stats.reduce((best, st, i) =>
     (st.path[st.path.length - 1] ?? -Infinity) > (stats[best].path[stats[best].path.length - 1] ?? -Infinity) ? i : best, 0);
   validPaths.forEach((path, si) => {
-    const shown  = Math.max(2, Math.ceil(nPts * progress));
-    const headI  = shown - 1;
-    _drawRecordingFigure(rc, pxFn(headI), pyFn(path[headI]), elapsed, stats[si].color, progress >= 1 && si === winnerIdx);
+    const shown = Math.max(2, Math.ceil(nPts * progress));
+    _drawRecordingFigure(rc, pxFn(shown - 1), pyFn(path[shown - 1]), elapsed, stats[si].color, progress >= 1 && si === winnerIdx);
   });
 }
 
