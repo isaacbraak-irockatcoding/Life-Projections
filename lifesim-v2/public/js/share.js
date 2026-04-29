@@ -369,15 +369,16 @@ async function exportTikTok() {
 
   // ── Path A: WebCodecs → H.264/MP4  (iOS 16.4+, Chrome 94+) ─────────────
   if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
-    const target  = new Mp4Muxer.ArrayBufferTarget();
-    const muxer   = new Mp4Muxer.Muxer({
+    const target     = new Mp4Muxer.ArrayBufferTarget();
+    const muxer      = new Mp4Muxer.Muxer({
       target,
       video:     { codec: 'avc', width: RW, height: RH },
       fastStart: 'in-memory',
     });
+    let encoderFailed = false;
     const encoder = new VideoEncoder({
       output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-      error:  e => console.error('VideoEncoder:', e),
+      error:  e => { console.error('VideoEncoder:', e); encoderFailed = true; },
     });
     encoder.configure({
       codec:     'avc1.4d001f',
@@ -389,24 +390,49 @@ async function exportTikTok() {
 
     function drawFrameMP4() {
       const elapsed = Date.now() - startTime;
-      if (elapsed > DURATION) {
-        encoder.flush().then(() => {
-          muxer.finalize();
-          _finishExport(new Blob([target.buffer], { type: 'video/mp4' }), '.mp4');
-        });
+
+      if (encoderFailed) {
+        // Fall back to Path B silently
+        _runMediaRecorder();
         return;
       }
+
+      if (elapsed > DURATION) {
+        encoder.flush()
+          .then(() => { muxer.finalize(); _finishExport(new Blob([target.buffer], { type: 'video/mp4' }), '.mp4'); })
+          .catch(() => _runMediaRecorder());
+        return;
+      }
+
       if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
       _drawContents(elapsed);
-      const vf = new VideoFrame(recCanvas, { timestamp: Math.round(elapsed * 1000) });
-      encoder.encode(vf, { keyFrame: elapsed < 100 });
-      vf.close();
+      try {
+        const vf = new VideoFrame(recCanvas, { timestamp: Math.round(elapsed * 1000) });
+        encoder.encode(vf, { keyFrame: elapsed % 2000 < 34 });
+        vf.close();
+      } catch { encoderFailed = true; }
       requestAnimationFrame(drawFrameMP4);
     }
     requestAnimationFrame(drawFrameMP4);
 
   // ── Path B: MediaRecorder → WebM  (desktop Chrome / Firefox) ────────────
   } else if (typeof MediaRecorder !== 'undefined') {
+    _runMediaRecorder();
+
+  // ── Path C: No API available ─────────────────────────────────────────────
+  } else {
+    recCanvas.remove();
+    if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
+    showToast("Video export isn't supported here — use your phone's screen recorder instead.", true);
+  }
+
+  function _runMediaRecorder() {
+    if (typeof MediaRecorder === 'undefined') {
+      recCanvas.remove();
+      if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
+      showToast('Recording not supported on this browser.', true);
+      return;
+    }
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
       ? 'video/webm;codecs=vp9'
       : 'video/webm';
@@ -417,20 +443,15 @@ async function exportTikTok() {
     recorder.onstop = () => _finishExport(new Blob(chunks, { type: 'video/webm' }), '.webm');
     recorder.start(200);
 
+    const recStart = Date.now();
     function drawFrameWebM() {
-      const elapsed = Date.now() - startTime;
+      const elapsed = Date.now() - recStart;
       if (elapsed > DURATION) { recorder.stop(); return; }
       if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
       _drawContents(elapsed);
       requestAnimationFrame(drawFrameWebM);
     }
     requestAnimationFrame(drawFrameWebM);
-
-  // ── Path C: No API available ─────────────────────────────────────────────
-  } else {
-    recCanvas.remove();
-    if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
-    showToast("Video export isn't supported here — use your phone's screen recorder instead.", true);
   }
 }
 
