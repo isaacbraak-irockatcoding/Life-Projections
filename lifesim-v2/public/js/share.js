@@ -362,6 +362,7 @@ async function exportTikTok() {
       } catch {}
     }
 
+    switchTab('share');
     if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
     _showVideoPlayer(blob, filename + ext);
   }
@@ -464,15 +465,16 @@ function _showVideoPlayer(blob, fname) {
     container.innerHTML = '';
     if (!mobile) {
       const dlBtn = document.createElement('a');
-      dlBtn.href              = blobUrl;
-      dlBtn.download          = fname;
-      dlBtn.className         = 'btn btn-primary btn-sm';
-      dlBtn.style.cssText     = 'text-decoration:none;margin-top:10px;display:inline-block;';
-      dlBtn.textContent       = 'Download';
+      dlBtn.href          = blobUrl;
+      dlBtn.download      = fname;
+      dlBtn.className     = 'btn btn-primary btn-sm';
+      dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
+      dlBtn.textContent   = 'Download';
       container.append(video, hint, dlBtn);
     } else {
       container.append(video, hint);
     }
+    container.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } else {
     // fallback: floating overlay if share tab isn't visible
     const overlay = document.createElement('div');

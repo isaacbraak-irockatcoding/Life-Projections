@@ -699,8 +699,39 @@ input[type=range] {
 }
 
 /* ══════════════════════════════════════
-   COMPOUND INTEREST CALCULATOR
+   CALCULATOR TAB
 ══════════════════════════════════════ */
+
+.calc-mode-toggle {
+  display: flex;
+  background: var(--surf);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 3px;
+  margin-bottom: 16px;
+  gap: 2px;
+}
+.calc-mode-btn {
+  flex: 1;
+  padding: 7px 0;
+  border: none;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--muted2);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.calc-mode-btn.active {
+  background: var(--teal);
+  color: #000;
+}
+
+.amort-chart-wrap {
+  max-width: 220px;
+  margin: 0 auto 4px;
+}
 .calc-title {
   font-family: var(--font-disp);
   font-size: 22px;
@@ -731,42 +762,46 @@ input[type=range] {
 }
 
 .calc-input-wrap {
-  position: relative;
   display: flex;
   align-items: center;
-}
-
-.calc-prefix {
-  position: absolute;
-  left: 10px;
-  color: var(--muted2);
-  font-family: var(--font-num);
-  font-size: 13px;
-  pointer-events: none;
-}
-
-.calc-suffix {
-  position: absolute;
-  right: 10px;
-  color: var(--muted2);
-  font-family: var(--font-num);
-  font-size: 13px;
-  pointer-events: none;
-}
-
-.calc-input {
-  width: 100%;
   background: var(--surf);
   border: 1px solid var(--border2);
   border-radius: var(--r-sm);
+  transition: border-color .15s;
+  overflow: hidden;
+}
+.calc-input-wrap:focus-within { border-color: var(--teal); }
+
+.calc-prefix {
+  padding: 0 2px 0 10px;
+  color: var(--muted2);
+  font-family: var(--font-num);
+  font-size: 13px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.calc-suffix {
+  padding: 0 10px 0 2px;
+  color: var(--muted2);
+  font-family: var(--font-num);
+  font-size: 13px;
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.calc-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
   color: var(--text);
   font-family: var(--font-num);
   font-size: 14px;
-  padding: 9px 12px 9px 30px;
+  padding: 9px 10px;
   outline: none;
-  transition: border-color .15s;
 }
-.calc-input:focus { border-color: var(--teal); }
+.calc-input:focus { outline: none; }
 .calc-input[type="number"] { -moz-appearance: textfield; }
 .calc-input[type="number"]::-webkit-inner-spin-button,
 .calc-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
