@@ -224,31 +224,83 @@ async function postPublicComment(token) {
   } catch (err) { showToast(err.message, true); }
 }
 
+function _drawRecordingChart(rc, stats, x, y, w, h, progress) {
+  // path starts with startAge null values — strip them so we only plot real data
+  const startIdx = stats.reduce((best, st) => {
+    const idx = st.path.findIndex(v => v !== null);
+    return idx >= 0 ? Math.min(best, idx) : best;
+  }, Infinity);
+  if (!isFinite(startIdx)) return;
+
+  const validPaths = stats.map(st => st.path.slice(startIdx).map(v => v ?? 0));
+  const nPts = validPaths[0]?.length ?? 0;
+  if (nPts < 2) return;
+
+  let maxVal = 1;
+  for (const path of validPaths)
+    for (const v of path) if (v > maxVal) maxVal = v;
+
+  // Subtle grid lines
+  rc.save();
+  rc.strokeStyle = 'rgba(255,255,255,0.07)';
+  rc.lineWidth = 1;
+  for (let g = 1; g <= 4; g++) {
+    const gy = y + h - (g / 4) * h;
+    rc.beginPath(); rc.moveTo(x, gy); rc.lineTo(x + w, gy); rc.stroke();
+  }
+  rc.restore();
+
+  validPaths.forEach((path, si) => {
+    const color = stats[si].color;
+    const shown = Math.max(2, Math.ceil(nPts * progress));
+
+    const px = (i) => x + (i / (nPts - 1)) * w;
+    const py = (i) => y + h - Math.max(0, path[i] / maxVal) * h;
+
+    // Fill under line
+    rc.beginPath();
+    rc.moveTo(px(0), y + h);
+    for (let i = 0; i < shown; i++) rc.lineTo(px(i), py(i));
+    rc.lineTo(px(shown - 1), y + h);
+    rc.closePath();
+    rc.fillStyle = color + '20';
+    rc.fill();
+
+    // Line
+    rc.beginPath();
+    for (let i = 0; i < shown; i++) {
+      if (i === 0) rc.moveTo(px(i), py(i));
+      else rc.lineTo(px(i), py(i));
+    }
+    rc.strokeStyle = color;
+    rc.lineWidth   = 3.5;
+    rc.lineJoin    = 'round';
+    rc.lineCap     = 'round';
+    rc.shadowColor = color;
+    rc.shadowBlur  = 10;
+    rc.stroke();
+    rc.shadowBlur  = 0;
+  });
+}
+
 async function exportTikTok() {
   const scenario = State.getScenario();
   if (!scenario) return;
 
   const btn = document.getElementById('tiktok-btn');
 
-  switchTab('proj');
-  await new Promise(r => setTimeout(r, 400));
-
-  const srcCanvas = document.getElementById('projChart');
-  if (!srcCanvas) { showToast('Chart not found', true); return; }
-
   const scenarios = getToRender();
   if (!scenarios.length) return;
 
   const scenarioStats = scenarios.map(s => {
-    const result    = calculatePath(s);
-    const rows      = result.rows || [];
-    const retireAge = s.retire_age || 65;
-    const retireRow = rows.find(r => r.age >= retireAge) || rows[rows.length - 1] || {};
+    const result = calculatePath(s);
+    const rows   = result.rows || [];
+    const last   = rows[rows.length - 1] || {};
     return {
       name:     s.name,
       color:    s.color || '#00d4aa',
-      retireAge,
-      netWorth: retireRow.balance || 0,
+      netWorth: last.balance || 0,
+      path:     result.path || rows.map(r => r.balance),
     };
   });
 
@@ -264,13 +316,7 @@ async function exportTikTok() {
   const DURATION      = CHART_ANIM_MS + 4_000;
   const filename      = `lifesim-${(scenario.name || 'projection').replace(/\s+/g, '-').toLowerCase()}`;
 
-  if (_animateMode) toggleAnimateMode();
-  await new Promise(r => setTimeout(r, 100));
-  toggleAnimateMode();
-
   if (btn) { btn.textContent = '⏺ Recording… 0%'; btn.disabled = true; }
-
-  const startTime = Date.now();
 
   function _drawContents(elapsed) {
     rc.fillStyle = '#07080f';
@@ -292,18 +338,17 @@ async function exportTikTok() {
     const rowH   = scenarios.length > 1 ? 118 : 140;
     const statsH = scenarios.length * rowH + 72;
     const availH = RH - titleH - statsH;
+    const progress = Math.min(1, elapsed / CHART_ANIM_MS);
 
-    const chartW  = RW - pad * 2;
-    const nativeR = srcCanvas.height / srcCanvas.width;
-    const chartH  = Math.min(availH - 16, Math.round(chartW * nativeR));
-    const chartY  = titleH + Math.round((availH - chartH) / 2);
-    rc.drawImage(srcCanvas, pad, chartY, chartW, chartH);
+    const chartW = RW - pad * 2;
+    const chartH = Math.min(availH - 16, Math.round(chartW * 0.6));
+    const chartY = titleH + Math.round((availH - chartH) / 2);
+    _drawRecordingChart(rc, scenarioStats, pad, chartY, chartW, chartH, progress);
 
     const panelTop = RH - statsH;
     rc.fillStyle = 'rgba(255,255,255,0.04)';
     rc.fillRect(0, panelTop, RW, statsH - 72);
 
-    const progress   = Math.min(1, elapsed / CHART_ANIM_MS);
     const nwFontSz   = scenarios.length > 1 ? 58 : 72;
     const nameFontSz = scenarios.length > 1 ? 22 : 26;
 
@@ -362,85 +407,37 @@ async function exportTikTok() {
       } catch {}
     }
 
-    switchTab('share');
     if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
     _showVideoPlayer(blob, filename + ext);
   }
 
-  // ── Path A: WebCodecs → H.264/MP4  (iOS 16.4+, Chrome 94+) ─────────────
-  if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
-    const target     = new Mp4Muxer.ArrayBufferTarget();
-    const muxer      = new Mp4Muxer.Muxer({
-      target,
-      video:     { codec: 'avc', width: RW, height: RH },
-      fastStart: 'in-memory',
-    });
-    let encoderFailed = false;
-    const encoder = new VideoEncoder({
-      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
-      error:  e => { console.error('VideoEncoder:', e); encoderFailed = true; },
-    });
-    encoder.configure({
-      codec:     'avc1.4d001f',
-      width:     RW,
-      height:    RH,
-      bitrate:   6_000_000,
-      framerate: 30,
-    });
+  // Pick best available recording method.
+  // MediaRecorder is tried first — it's reliable on all desktop browsers and iOS 14.3+.
+  // WebCodecs (MP4) is used only when MediaRecorder has no supported codec.
+  const _mrMime =
+    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/mp4')            ? 'video/mp4'           :
+    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' :
+    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm')            ? 'video/webm'          :
+    null;
 
-    function drawFrameMP4() {
-      const elapsed = Date.now() - startTime;
-
-      if (encoderFailed) {
-        // Fall back to Path B silently
-        _runMediaRecorder();
-        return;
-      }
-
-      if (elapsed > DURATION) {
-        encoder.flush()
-          .then(() => { muxer.finalize(); _finishExport(new Blob([target.buffer], { type: 'video/mp4' }), '.mp4'); })
-          .catch(() => _runMediaRecorder());
-        return;
-      }
-
-      if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
-      _drawContents(elapsed);
-      try {
-        const vf = new VideoFrame(recCanvas, { timestamp: Math.round(elapsed * 1000) });
-        encoder.encode(vf, { keyFrame: elapsed % 2000 < 34 });
-        vf.close();
-      } catch { encoderFailed = true; }
-      requestAnimationFrame(drawFrameMP4);
-    }
-    requestAnimationFrame(drawFrameMP4);
-
-  // ── Path B: MediaRecorder → WebM  (desktop Chrome / Firefox) ────────────
-  } else if (typeof MediaRecorder !== 'undefined') {
+  if (_mrMime) {
     _runMediaRecorder();
-
-  // ── Path C: No API available ─────────────────────────────────────────────
+  } else if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
+    _runWebCodecs();
   } else {
     recCanvas.remove();
     if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
-    showToast("Video export isn't supported here — use your phone's screen recorder instead.", true);
+    showToast("Video export isn't supported on this browser.", true);
   }
 
   function _runMediaRecorder() {
-    if (typeof MediaRecorder === 'undefined') {
-      recCanvas.remove();
-      if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
-      showToast('Recording not supported on this browser.', true);
-      return;
-    }
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-      ? 'video/webm;codecs=vp9'
-      : 'video/webm';
+    const mimeType = _mrMime;
+    const ext      = mimeType.startsWith('video/mp4') ? '.mp4' : '.webm';
     const stream   = recCanvas.captureStream(30);
     const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
     const chunks   = [];
     recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => _finishExport(new Blob(chunks, { type: 'video/webm' }), '.webm');
+    recorder.onstop = () => _finishExport(new Blob(chunks, { type: mimeType }), ext);
     recorder.start(200);
 
     const recStart = Date.now();
@@ -452,6 +449,47 @@ async function exportTikTok() {
       requestAnimationFrame(drawFrameWebM);
     }
     requestAnimationFrame(drawFrameWebM);
+  }
+
+  function _runWebCodecs() {
+    const target = new Mp4Muxer.ArrayBufferTarget();
+    const muxer  = new Mp4Muxer.Muxer({ target, video: { codec: 'avc', width: RW, height: RH }, fastStart: 'in-memory' });
+    let failed = false;
+    const encoder = new VideoEncoder({
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+      error:  e => { console.error('VideoEncoder:', e); failed = true; },
+    });
+    encoder.configure({ codec: 'avc1.4d001f', width: RW, height: RH, bitrate: 6_000_000, framerate: 30 });
+
+    const recStart = Date.now();
+    function drawFrame() {
+      const elapsed = Date.now() - recStart;
+      if (failed) {
+        recCanvas.remove();
+        if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
+        showToast('Recording failed — try again', true);
+        return;
+      }
+      if (elapsed > DURATION) {
+        encoder.flush()
+          .then(() => { muxer.finalize(); _finishExport(new Blob([target.buffer], { type: 'video/mp4' }), '.mp4'); })
+          .catch(() => {
+            recCanvas.remove();
+            if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
+            showToast('Recording failed — try again', true);
+          });
+        return;
+      }
+      if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
+      _drawContents(elapsed);
+      try {
+        const vf = new VideoFrame(recCanvas, { timestamp: Math.round(elapsed * 1000) });
+        encoder.encode(vf, { keyFrame: elapsed % 2000 < 34 });
+        vf.close();
+      } catch { failed = true; }
+      requestAnimationFrame(drawFrame);
+    }
+    requestAnimationFrame(drawFrame);
   }
 }
 
