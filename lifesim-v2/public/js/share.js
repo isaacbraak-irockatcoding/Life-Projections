@@ -37,9 +37,10 @@ function renderShareTab() {
     <div class="card fade-up" style="margin-top:14px;">
       <h3>Export</h3>
       <div class="btn-row">
-        <button class="btn btn-ghost btn-sm" id="tiktok-btn" onclick="exportTikTok()">🎬 Export TikTok Video</button>
+        <button class="btn btn-ghost btn-sm" id="tiktok-btn" onclick="exportTikTok()">🎬 Record Clip</button>
       </div>
       <p class="micro" style="text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted2);margin-top:8px;">Records the animated chart in 9:16 vertical format — ready to post.</p>
+      <div id="clip-preview"></div>
     </div>
 
     <div id="share-comments-section" style="display:none;" class="fade-up">
@@ -338,7 +339,7 @@ async function exportTikTok() {
   async function _finishExport(blob, ext) {
     recCanvas.remove();
     if (blob.size < 1000) {
-      if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+      if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
       showToast('Recording was empty — try again', true);
       return;
     }
@@ -354,14 +355,14 @@ async function exportTikTok() {
         });
         if (res.ok) {
           const { url } = await res.json();
-          if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+          if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
           _showClipModal(url);
           return;
         }
       } catch {}
     }
 
-    if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+    if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
     _showVideoPlayer(blob, filename + ext);
   }
 
@@ -427,7 +428,7 @@ async function exportTikTok() {
   // ── Path C: No API available ─────────────────────────────────────────────
   } else {
     recCanvas.remove();
-    if (btn) { btn.textContent = '🎬 Export TikTok Video'; btn.disabled = false; }
+    if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
     showToast("Video export isn't supported here — use your phone's screen recorder instead.", true);
   }
 }
@@ -442,48 +443,51 @@ function _blobDownload(blob, filename) {
 }
 
 function _showVideoPlayer(blob, fname) {
-  const blobUrl = URL.createObjectURL(blob);
-  const mobile  = /iPhone|iPad|Android/i.test(navigator.userAgent);
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;';
+  const blobUrl  = URL.createObjectURL(blob);
+  const mobile   = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const container = document.getElementById('clip-preview');
 
   const video = document.createElement('video');
-  video.src        = blobUrl;
-  video.controls   = true;
+  video.src         = blobUrl;
+  video.controls    = true;
   video.playsInline = true;
-  video.autoplay   = true;
-  video.style.cssText = 'max-width:300px;max-height:55vh;border-radius:12px;background:#000;';
+  video.autoplay    = true;
+  video.style.cssText = 'width:100%;border-radius:10px;background:#000;margin-top:14px;display:block;';
 
   const hint = document.createElement('p');
-  hint.style.cssText = 'color:#9aa3c2;font-size:12px;text-align:center;margin:0;line-height:1.6;';
+  hint.style.cssText = 'color:var(--muted2,#7a83a8);font-size:11px;margin:8px 0 0;line-height:1.6;';
   hint.textContent = mobile
-    ? 'Hold the video → "Save to Photos" to keep it on your phone.'
-    : 'Right-click the video → "Save video as…" to download.';
+    ? 'Hold the video → "Save to Photos"'
+    : 'Right-click → "Save video as…" or use the download button.';
 
-  const row = document.createElement('div');
-  row.style.cssText = 'display:flex;gap:10px;';
-
-  if (!mobile) {
-    const dlBtn = document.createElement('a');
-    dlBtn.href     = blobUrl;
-    dlBtn.download = fname;
-    dlBtn.className = 'btn btn-primary';
-    dlBtn.style.textDecoration = 'none';
-    dlBtn.textContent = 'Download';
-    row.appendChild(dlBtn);
+  if (container) {
+    container.innerHTML = '';
+    if (!mobile) {
+      const dlBtn = document.createElement('a');
+      dlBtn.href              = blobUrl;
+      dlBtn.download          = fname;
+      dlBtn.className         = 'btn btn-primary btn-sm';
+      dlBtn.style.cssText     = 'text-decoration:none;margin-top:10px;display:inline-block;';
+      dlBtn.textContent       = 'Download';
+      container.append(video, hint, dlBtn);
+    } else {
+      container.append(video, hint);
+    }
+  } else {
+    // fallback: floating overlay if share tab isn't visible
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;';
+    video.style.cssText = 'max-width:300px;max-height:55vh;border-radius:12px;background:#000;';
+    const closeBtn = document.createElement('button');
+    closeBtn.className   = 'btn btn-ghost';
+    closeBtn.textContent = 'Close';
+    closeBtn.onclick = () => { overlay.remove(); URL.revokeObjectURL(blobUrl); };
+    overlay.append(video, hint, closeBtn);
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => {
+      if (e.target === overlay) { overlay.remove(); URL.revokeObjectURL(blobUrl); }
+    });
   }
-
-  const closeBtn = document.createElement('button');
-  closeBtn.className   = 'btn btn-ghost';
-  closeBtn.textContent = 'Close';
-  closeBtn.onclick = () => { overlay.remove(); URL.revokeObjectURL(blobUrl); };
-  row.appendChild(closeBtn);
-
-  overlay.append(video, hint, row);
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', e => {
-    if (e.target === overlay) { overlay.remove(); URL.revokeObjectURL(blobUrl); }
-  });
 }
 
 function _showClipModal(url) {
