@@ -314,8 +314,8 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
   const pMax   = tickMax + interval * 0.3;
   const pRange = pMax - pMin;
 
-  // Layout margins — generous left for labels, bottom for age + "Age" label
-  const lm = 92, bm = 70, tm = 14, rm = 14;
+  // Layout margins — generous left for labels, bottom for age + "Age" label, top for "Net Worth" title
+  const lm = 92, bm = 70, tm = 32, rm = 14;
   const cx = x + lm, cy = y + tm, cw = w - lm - rm, ch = h - bm - tm;
 
   const pxFn = (i) => cx + (i / (nPts - 1)) * cw;
@@ -338,25 +338,21 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
     // Only draw label when it won't collide with x-axis area (needs 20px clearance)
     if (gy < cy + ch - 20) {
       rc.fillStyle = isZero ? '#b0b8d0' : '#5e6882';
-      rc.font      = `${isZero ? 'bold ' : ''}20px sans-serif`;
+      rc.font      = `${isZero ? 'bold ' : ''}20px 'Outfit', sans-serif`;
       rc.textAlign = 'right';
       rc.fillText(fmtM(val), cx - 12, gy + 7);
     }
   }
 
-  // "Net Worth" axis title — rotated 90°, left of y-labels
-  rc.save();
-  rc.translate(x + 20, cy + ch / 2);
-  rc.rotate(-Math.PI / 2);
-  rc.fillStyle = '#424b65';
-  rc.font      = '19px sans-serif';
-  rc.textAlign = 'center';
-  rc.fillText('Net Worth', 0, 0);
-  rc.restore();
+  // "Net Worth" axis title — horizontal, above the top of the chart
+  rc.fillStyle = '#5e6882';
+  rc.font      = "18px 'Outfit', sans-serif";
+  rc.textAlign = 'right';
+  rc.fillText('Net Worth', cx - 12, cy - 10);
 
   // X-axis tick marks + age numbers
   rc.fillStyle  = '#5e6882';
-  rc.font       = '20px sans-serif';
+  rc.font       = "20px 'Outfit', sans-serif";
   rc.textAlign  = 'center';
   const nXTicks = 5;
   for (let t = 0; t <= nXTicks; t++) {
@@ -369,8 +365,8 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
   }
 
   // "Age" axis title
-  rc.fillStyle = '#424b65';
-  rc.font      = '19px sans-serif';
+  rc.fillStyle = '#5e6882';
+  rc.font      = "18px 'Outfit', sans-serif";
   rc.textAlign = 'center';
   rc.fillText('Age', cx + cw / 2, cy + ch + 56);
 
@@ -458,10 +454,10 @@ async function exportTikTok() {
 
     rc.textAlign = 'center';
     rc.fillStyle = scenarioStats[0].color;
-    rc.font = 'bold 38px sans-serif';
+    rc.font = "bold 38px 'Outfit', sans-serif";
     rc.fillText('My Wealth Projection', RW / 2, 100);
     rc.fillStyle = '#7a83a8';
-    rc.font = '24px sans-serif';
+    rc.font = "24px 'Outfit', sans-serif";
     rc.fillText(
       scenarios.length > 1 ? `${scenarios.length} Scenarios Compared` : scenario.name,
       RW / 2, 144
@@ -505,13 +501,13 @@ async function exportTikTok() {
       rc.fillText(fmtM(live), pad + 68, rowTop + nwFontSz * 0.72);
 
       rc.fillStyle = '#9aa3c2';
-      rc.font      = `${nameFontSz}px sans-serif`;
+      rc.font      = `${nameFontSz}px 'Outfit', sans-serif`;
       rc.fillText(st.name, pad + 68, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
     });
 
     rc.textAlign = 'center';
     rc.fillStyle = scenarioStats[0].color;
-    rc.font = 'bold 20px sans-serif';
+    rc.font = "bold 20px 'Outfit', sans-serif";
     rc.fillText('lifesimfinance.com', RW / 2, RH - 22);
   }
 
@@ -638,7 +634,8 @@ function _blobDownload(blob, filename) {
 
 function _showVideoPlayer(blob, fname) {
   const blobUrl   = URL.createObjectURL(blob);
-  const mobile    = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const isIOS     = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mobile    = isIOS || /Android/i.test(navigator.userAgent);
   const container = document.getElementById('clip-preview');
 
   const video = document.createElement('video');
@@ -648,13 +645,6 @@ function _showVideoPlayer(blob, fname) {
   video.autoplay    = true;
   video.style.cssText = 'width:100%;border-radius:10px;background:#000;margin-top:14px;display:block;';
 
-  const dlBtn = document.createElement('a');
-  dlBtn.href          = blobUrl;
-  dlBtn.download      = fname;
-  dlBtn.className     = 'btn btn-primary btn-sm';
-  dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
-  dlBtn.textContent   = 'Download';
-
   const hint = document.createElement('p');
   hint.style.cssText = 'color:var(--muted2,#7a83a8);font-size:11px;margin:8px 0 0;line-height:1.6;';
 
@@ -662,42 +652,58 @@ function _showVideoPlayer(blob, fname) {
     container.innerHTML = '';
     container.append(video);
 
-    // Try Web Share API first — lets iOS/Android save to Photos or Files natively
     const shareFile = new File([blob], fname, { type: blob.type });
+
     if (mobile && navigator.canShare?.({ files: [shareFile] })) {
+      // Web Share API — opens native share sheet on iOS and Android
       const shareBtn = document.createElement('button');
-      shareBtn.className   = 'btn btn-primary btn-sm';
+      shareBtn.className     = 'btn btn-primary btn-sm';
       shareBtn.style.cssText = 'margin-top:10px;';
-      shareBtn.textContent = 'Save to Phone';
+      shareBtn.textContent   = 'Save to Photos';
       shareBtn.onclick = async () => {
         try {
           await navigator.share({ files: [shareFile], title: 'My Wealth Projection' });
         } catch (e) {
-          if (e.name !== 'AbortError') container.append(dlBtn);
+          if (e.name !== 'AbortError')
+            hint.textContent = 'Long-press the video above, then tap "Save to Photos".';
         }
       };
       container.append(shareBtn);
-      hint.textContent = 'Tap "Save to Phone" — or hold the video to save manually.';
-    } else {
-      // Download link works on desktop always; also works on Android Chrome
+      hint.textContent = isIOS
+        ? 'Tap "Save to Photos" — or long-press the video and choose Save.'
+        : 'Tap "Save to Photos" to save directly to your device.';
+    } else if (!isIOS) {
+      // <a download> works on Android Chrome and desktop — NOT on iOS Safari (opens browser)
+      const dlBtn = document.createElement('a');
+      dlBtn.href          = blobUrl;
+      dlBtn.download      = fname;
+      dlBtn.className     = 'btn btn-primary btn-sm';
+      dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
+      dlBtn.textContent   = 'Download';
       container.append(dlBtn);
       hint.textContent = mobile
-        ? 'Tap Download or hold the video → "Save to Photos".'
+        ? 'Tap Download — or hold the video → "Save to Photos".'
         : 'Right-click → "Save video as…" or use the Download button.';
+    } else {
+      // iOS without Web Share API (older iOS) — only hold-to-save works
+      hint.textContent = 'Long-press the video above, then tap "Save to Photos".';
     }
+
     container.append(hint);
     container.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } else {
-    // Fallback overlay when share tab isn't visible
+    // Fallback overlay
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;';
     video.style.cssText = 'max-width:300px;max-height:55vh;border-radius:12px;background:#000;';
-    hint.textContent = mobile ? 'Hold the video → "Save to Photos".' : 'Right-click → "Save video as…"';
+    hint.textContent = isIOS
+      ? 'Long-press the video, then tap "Save to Photos".'
+      : mobile ? 'Hold the video → "Save to Photos".' : 'Right-click → "Save video as…"';
     const closeBtn = document.createElement('button');
     closeBtn.className   = 'btn btn-ghost';
     closeBtn.textContent = 'Close';
     closeBtn.onclick = () => { overlay.remove(); URL.revokeObjectURL(blobUrl); };
-    overlay.append(video, dlBtn, hint, closeBtn);
+    overlay.append(video, hint, closeBtn);
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => {
       if (e.target === overlay) { overlay.remove(); URL.revokeObjectURL(blobUrl); }
