@@ -224,8 +224,60 @@ async function postPublicComment(token) {
   } catch (err) { showToast(err.message, true); }
 }
 
-function _drawRecordingChart(rc, stats, x, y, w, h, progress) {
-  // path starts with startAge null values — strip them so we only plot real data
+function _sfStrokeRec(rc, x1, y1, x2, y2) {
+  rc.beginPath(); rc.moveTo(x1, y1); rc.lineTo(x2, y2); rc.stroke();
+}
+
+function _drawRecordingFigure(rc, cx, cy, now, color, isWinner) {
+  const R   = isWinner ? 14 : 9;
+  const bob = isWinner ? Math.sin(now / 150) * 4 : 0;
+  rc.save();
+
+  if (isWinner) {
+    rc.shadowColor = color;
+    rc.shadowBlur  = 20 + Math.sin(now / 180) * 8;
+    const ringPhase = (now % 900) / 900;
+    [0, 0.45].forEach(offset => {
+      const p  = (ringPhase + offset) % 1;
+      const rr = R * 2 + p * R * 5;
+      rc.beginPath();
+      rc.arc(cx, cy + bob - R * 2.3, rr, 0, Math.PI * 2);
+      rc.strokeStyle = color; rc.lineWidth = 2.5; rc.globalAlpha = (1 - p) * 0.5;
+      rc.stroke(); rc.globalAlpha = 1;
+    });
+  }
+
+  rc.translate(cx, cy + bob);
+  rc.strokeStyle = color; rc.fillStyle = color;
+  rc.lineWidth = isWinner ? 2.5 : 1.8;
+  rc.lineCap = 'round'; rc.lineJoin = 'round';
+
+  rc.beginPath();
+  rc.arc(0, -R * 2.3, R * (isWinner ? 0.42 : 0.38), 0, Math.PI * 2);
+  rc.fill();
+
+  if (isWinner) {
+    const dPhase = (now / 330) % (Math.PI * 2);
+    const aL = Math.sin(dPhase), aR = -Math.sin(dPhase);
+    const ls = Math.sin((now / 260) % (Math.PI * 2));
+    _sfStrokeRec(rc, 0, -R*1.9, 0, -R*0.5);
+    _sfStrokeRec(rc, 0, -R*1.55, -R*0.9, -R*1.55 + aL*R*1.1);
+    _sfStrokeRec(rc, 0, -R*1.55,  R*0.9, -R*1.55 + aR*R*1.1);
+    _sfStrokeRec(rc, 0, -R*0.5, -R*0.7 + ls*R*0.4,  R*0.6);
+    _sfStrokeRec(rc, 0, -R*0.5,  R*0.7 - ls*R*0.4,  R*0.6);
+  } else {
+    const phase = (now / 260) % (Math.PI * 2);
+    const ls = Math.sin(phase), as = Math.sin(phase + Math.PI);
+    _sfStrokeRec(rc, 0, -R*1.9, 0, -R*0.5);
+    _sfStrokeRec(rc, 0, -R*1.6,  as*R*0.5, -R*1.6 - R*0.45);
+    _sfStrokeRec(rc, 0, -R*1.6, -as*R*0.5, -R*1.6 - R*0.45);
+    _sfStrokeRec(rc, 0, -R*0.5,  ls*R*0.6, -R*0.5 + R*0.75);
+    _sfStrokeRec(rc, 0, -R*0.5, -ls*R*0.6, -R*0.5 + R*0.75);
+  }
+  rc.restore();
+}
+
+function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
   const startIdx = stats.reduce((best, st) => {
     const idx = st.path.findIndex(v => v !== null);
     return idx >= 0 ? Math.min(best, idx) : best;
@@ -236,42 +288,98 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress) {
   const nPts = validPaths[0]?.length ?? 0;
   if (nPts < 2) return;
 
-  let maxVal = 1;
-  for (const path of validPaths)
-    for (const v of path) if (v > maxVal) maxVal = v;
+  // path index = age (getAges returns 0..85), so startIdx is the starting age
+  const startAge = startIdx;
 
-  // Subtle grid lines
+  let minVal = 0, maxVal = 1;
+  for (const path of validPaths)
+    for (const v of path) { if (v < minVal) minVal = v; if (v > maxVal) maxVal = v; }
+
+  // Pad the range slightly so lines don't touch the edges
+  const range = maxVal - minVal || 1;
+  const pMin = minVal - range * 0.04;
+  const pMax = maxVal + range * 0.08;
+  const pRange = pMax - pMin;
+
+  // Reserve margins for axis labels
+  const lm = 70, bm = 36;
+  const cx = x + lm, cy = y, cw = w - lm, ch = h - bm;
+
+  const pxFn = (i) => cx + (i / (nPts - 1)) * cw;
+  const pyFn = (v) => cy + ch - ((v - pMin) / pRange) * ch;
+
   rc.save();
-  rc.strokeStyle = 'rgba(255,255,255,0.07)';
-  rc.lineWidth = 1;
-  for (let g = 1; g <= 4; g++) {
-    const gy = y + h - (g / 4) * h;
-    rc.beginPath(); rc.moveTo(x, gy); rc.lineTo(x + w, gy); rc.stroke();
+
+  // Y-axis ticks + labels
+  const nTicks = 5;
+  for (let t = 0; t <= nTicks; t++) {
+    const val = pMin + (t / nTicks) * pRange;
+    const gy  = pyFn(val);
+    rc.strokeStyle = 'rgba(255,255,255,0.07)';
+    rc.lineWidth = 1;
+    rc.setLineDash([4, 4]);
+    rc.beginPath(); rc.moveTo(cx, gy); rc.lineTo(cx + cw, gy); rc.stroke();
+    rc.setLineDash([]);
+    rc.fillStyle = '#7a83a8';
+    rc.font = '22px sans-serif';
+    rc.textAlign = 'right';
+    rc.fillText(fmtM(Math.round(val)), cx - 8, gy + 7);
   }
+
+  // $0 reference line when chart spans negative values
+  if (pMin < 0 && pMax > 0) {
+    const zy = pyFn(0);
+    rc.strokeStyle = 'rgba(255,255,255,0.22)';
+    rc.lineWidth = 1.5;
+    rc.setLineDash([5, 3]);
+    rc.beginPath(); rc.moveTo(cx, zy); rc.lineTo(cx + cw, zy); rc.stroke();
+    rc.setLineDash([]);
+  }
+
+  // X-axis labels (ages)
+  rc.fillStyle = '#7a83a8';
+  rc.font = '22px sans-serif';
+  rc.textAlign = 'center';
+  const nXTicks = 5;
+  for (let t = 0; t <= nXTicks; t++) {
+    const i  = Math.round((t / nXTicks) * (nPts - 1));
+    const gx = pxFn(i);
+    rc.strokeStyle = 'rgba(255,255,255,0.15)';
+    rc.lineWidth = 1;
+    rc.beginPath(); rc.moveTo(gx, cy + ch); rc.lineTo(gx, cy + ch + 6); rc.stroke();
+    rc.fillText(`${startAge + i}`, gx, cy + ch + 28);
+  }
+
   rc.restore();
 
+  // Draw each scenario line with catmull-rom smooth curves (tension 0.35, matching Chart.js)
+  const tension = 0.35;
   validPaths.forEach((path, si) => {
     const color = stats[si].color;
     const shown = Math.max(2, Math.ceil(nPts * progress));
+    const pts   = [];
+    for (let i = 0; i < shown; i++) pts.push({ x: pxFn(i), y: pyFn(path[i]) });
+    if (pts.length < 2) return;
 
-    const px = (i) => x + (i / (nPts - 1)) * w;
-    const py = (i) => y + h - Math.max(0, path[i] / maxVal) * h;
-
-    // Fill under line
-    rc.beginPath();
-    rc.moveTo(px(0), y + h);
-    for (let i = 0; i < shown; i++) rc.lineTo(px(i), py(i));
-    rc.lineTo(px(shown - 1), y + h);
-    rc.closePath();
-    rc.fillStyle = color + '20';
-    rc.fill();
-
-    // Line
-    rc.beginPath();
-    for (let i = 0; i < shown; i++) {
-      if (i === 0) rc.moveTo(px(i), py(i));
-      else rc.lineTo(px(i), py(i));
+    function drawSpline(doFill) {
+      rc.beginPath();
+      if (doFill) { rc.moveTo(pts[0].x, cy + ch); rc.lineTo(pts[0].x, pts[0].y); }
+      else        { rc.moveTo(pts[0].x, pts[0].y); }
+      for (let i = 1; i < pts.length; i++) {
+        const p0 = pts[Math.max(0, i - 2)];
+        const p1 = pts[i - 1];
+        const p2 = pts[i];
+        const p3 = pts[Math.min(pts.length - 1, i + 1)];
+        rc.bezierCurveTo(
+          p1.x + (p2.x - p0.x) * tension / 2, p1.y + (p2.y - p0.y) * tension / 2,
+          p2.x - (p3.x - p1.x) * tension / 2, p2.y - (p3.y - p1.y) * tension / 2,
+          p2.x, p2.y
+        );
+      }
+      if (doFill) { rc.lineTo(pts[pts.length - 1].x, cy + ch); rc.closePath(); }
     }
+
+    drawSpline(false);
     rc.strokeStyle = color;
     rc.lineWidth   = 3.5;
     rc.lineJoin    = 'round';
@@ -280,6 +388,15 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress) {
     rc.shadowBlur  = 10;
     rc.stroke();
     rc.shadowBlur  = 0;
+  });
+
+  // Stick figure at the head of each line
+  const winnerIdx = stats.reduce((best, st, i) =>
+    (st.path[st.path.length - 1] ?? -Infinity) > (stats[best].path[stats[best].path.length - 1] ?? -Infinity) ? i : best, 0);
+  validPaths.forEach((path, si) => {
+    const shown  = Math.max(2, Math.ceil(nPts * progress));
+    const headI  = shown - 1;
+    _drawRecordingFigure(rc, pxFn(headI), pyFn(path[headI]), elapsed, stats[si].color, progress >= 1 && si === winnerIdx);
   });
 }
 
@@ -343,7 +460,7 @@ async function exportTikTok() {
     const chartW = RW - pad * 2;
     const chartH = Math.min(availH - 16, Math.round(chartW * 0.6));
     const chartY = titleH + Math.round((availH - chartH) / 2);
-    _drawRecordingChart(rc, scenarioStats, pad, chartY, chartW, chartH, progress);
+    _drawRecordingChart(rc, scenarioStats, pad, chartY, chartW, chartH, progress, elapsed);
 
     const panelTop = RH - statsH;
     rc.fillStyle = 'rgba(255,255,255,0.04)';
@@ -503,8 +620,8 @@ function _blobDownload(blob, filename) {
 }
 
 function _showVideoPlayer(blob, fname) {
-  const blobUrl  = URL.createObjectURL(blob);
-  const mobile   = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const blobUrl   = URL.createObjectURL(blob);
+  const mobile    = /iPhone|iPad|Android/i.test(navigator.userAgent);
   const container = document.getElementById('clip-preview');
 
   const video = document.createElement('video');
@@ -514,36 +631,56 @@ function _showVideoPlayer(blob, fname) {
   video.autoplay    = true;
   video.style.cssText = 'width:100%;border-radius:10px;background:#000;margin-top:14px;display:block;';
 
+  const dlBtn = document.createElement('a');
+  dlBtn.href          = blobUrl;
+  dlBtn.download      = fname;
+  dlBtn.className     = 'btn btn-primary btn-sm';
+  dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
+  dlBtn.textContent   = 'Download';
+
   const hint = document.createElement('p');
   hint.style.cssText = 'color:var(--muted2,#7a83a8);font-size:11px;margin:8px 0 0;line-height:1.6;';
-  hint.textContent = mobile
-    ? 'Hold the video → "Save to Photos"'
-    : 'Right-click → "Save video as…" or use the download button.';
 
   if (container) {
     container.innerHTML = '';
-    if (!mobile) {
-      const dlBtn = document.createElement('a');
-      dlBtn.href          = blobUrl;
-      dlBtn.download      = fname;
-      dlBtn.className     = 'btn btn-primary btn-sm';
-      dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
-      dlBtn.textContent   = 'Download';
-      container.append(video, hint, dlBtn);
+    container.append(video);
+
+    // Try Web Share API first — lets iOS/Android save to Photos or Files natively
+    const shareFile = new File([blob], fname, { type: blob.type });
+    if (mobile && navigator.canShare?.({ files: [shareFile] })) {
+      const shareBtn = document.createElement('button');
+      shareBtn.className   = 'btn btn-primary btn-sm';
+      shareBtn.style.cssText = 'margin-top:10px;';
+      shareBtn.textContent = 'Save to Phone';
+      shareBtn.onclick = async () => {
+        try {
+          await navigator.share({ files: [shareFile], title: 'My Wealth Projection' });
+        } catch (e) {
+          if (e.name !== 'AbortError') container.append(dlBtn);
+        }
+      };
+      container.append(shareBtn);
+      hint.textContent = 'Tap "Save to Phone" — or hold the video to save manually.';
     } else {
-      container.append(video, hint);
+      // Download link works on desktop always; also works on Android Chrome
+      container.append(dlBtn);
+      hint.textContent = mobile
+        ? 'Tap Download or hold the video → "Save to Photos".'
+        : 'Right-click → "Save video as…" or use the Download button.';
     }
+    container.append(hint);
     container.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } else {
-    // fallback: floating overlay if share tab isn't visible
+    // Fallback overlay when share tab isn't visible
     const overlay = document.createElement('div');
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:14px;';
     video.style.cssText = 'max-width:300px;max-height:55vh;border-radius:12px;background:#000;';
+    hint.textContent = mobile ? 'Hold the video → "Save to Photos".' : 'Right-click → "Save video as…"';
     const closeBtn = document.createElement('button');
     closeBtn.className   = 'btn btn-ghost';
     closeBtn.textContent = 'Close';
     closeBtn.onclick = () => { overlay.remove(); URL.revokeObjectURL(blobUrl); };
-    overlay.append(video, hint, closeBtn);
+    overlay.append(video, dlBtn, hint, closeBtn);
     document.body.appendChild(overlay);
     overlay.addEventListener('click', e => {
       if (e.target === overlay) { overlay.remove(); URL.revokeObjectURL(blobUrl); }
