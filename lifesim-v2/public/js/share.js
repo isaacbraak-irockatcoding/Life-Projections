@@ -484,25 +484,19 @@ async function exportTikTok() {
 
     scenarioStats.forEach((st, i) => {
       const rowTop = panelTop + i * rowH + 18;
-      const live   = Math.round(st.netWorth * progress);
+      const nPts   = st.path.length;
+      const shown  = Math.max(2, Math.ceil(nPts * progress));
+      const live   = Math.round(st.path[Math.min(shown - 1, nPts - 1)]);
       const clr    = st.netWorth < 0 ? '#ff6b6b' : st.color;
-
-      rc.strokeStyle = clr;
-      rc.lineWidth   = 6;
-      rc.lineCap     = 'round';
-      rc.beginPath();
-      rc.moveTo(pad, rowTop + 22);
-      rc.lineTo(pad + 52, rowTop + 22);
-      rc.stroke();
 
       rc.textAlign = 'left';
       rc.fillStyle = clr;
       rc.font      = `bold ${nwFontSz}px monospace`;
-      rc.fillText(fmtM(live), pad + 68, rowTop + nwFontSz * 0.72);
+      rc.fillText(fmtM(live), pad, rowTop + nwFontSz * 0.72);
 
       rc.fillStyle = '#9aa3c2';
       rc.font      = `${nameFontSz}px 'Outfit', sans-serif`;
-      rc.fillText(st.name, pad + 68, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
+      rc.fillText(st.name, pad, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
     });
 
     rc.textAlign = 'center';
