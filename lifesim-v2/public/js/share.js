@@ -652,41 +652,62 @@ function _showVideoPlayer(blob, fname) {
     container.innerHTML = '';
     container.append(video);
 
-    const shareFile = new File([blob], fname, { type: blob.type });
-
-    if (mobile && navigator.canShare?.({ files: [shareFile] })) {
-      // Web Share API — opens native share sheet on iOS and Android
-      const shareBtn = document.createElement('button');
-      shareBtn.className     = 'btn btn-primary btn-sm';
-      shareBtn.style.cssText = 'margin-top:10px;';
-      shareBtn.textContent   = 'Save to Photos';
-      shareBtn.onclick = async () => {
-        try {
-          await navigator.share({ files: [shareFile], title: 'My Wealth Projection' });
-        } catch (e) {
-          if (e.name !== 'AbortError')
-            hint.textContent = 'Long-press the video above, then tap "Save to Photos".';
-        }
-      };
-      container.append(shareBtn);
-      hint.textContent = isIOS
-        ? 'Tap "Save to Photos" — or long-press the video and choose Save.'
-        : 'Tap "Save to Photos" to save directly to your device.';
-    } else if (!isIOS) {
-      // <a download> works on Android Chrome and desktop — NOT on iOS Safari (opens browser)
-      const dlBtn = document.createElement('a');
-      dlBtn.href          = blobUrl;
-      dlBtn.download      = fname;
-      dlBtn.className     = 'btn btn-primary btn-sm';
-      dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
-      dlBtn.textContent   = 'Download';
-      container.append(dlBtn);
-      hint.textContent = mobile
-        ? 'Tap Download — or hold the video → "Save to Photos".'
-        : 'Right-click → "Save video as…" or use the Download button.';
+    if (isIOS) {
+      if (typeof navigator.share === 'function') {
+        // iOS 15+: Web Share API with files → native share sheet → "Save Video" saves to Photos.
+        // File is created inside onclick so it's always tied to the user gesture.
+        const saveBtn = document.createElement('button');
+        saveBtn.className     = 'btn btn-primary btn-sm';
+        saveBtn.style.cssText = 'margin-top:10px;';
+        saveBtn.textContent   = 'Save to Camera Roll';
+        saveBtn.onclick = async () => {
+          const f = new File([blob], fname, { type: blob.type });
+          try {
+            await navigator.share({ files: [f], title: 'My Wealth Projection' });
+          } catch (e) {
+            if (e.name !== 'AbortError')
+              hint.textContent = 'Long-press the video above, then tap "Save to Photos".';
+          }
+        };
+        container.append(saveBtn);
+        hint.textContent = 'Tap "Save to Camera Roll" — it will open your share sheet, then tap "Save Video".';
+      } else {
+        // Very old iOS without navigator.share — long-press is the only option
+        hint.textContent = 'Long-press the video above, then tap "Save to Photos".';
+      }
+    } else if (mobile) {
+      // Android: try Web Share API if supported, otherwise download link
+      const shareFile = new File([blob], fname, { type: blob.type });
+      if (navigator.canShare?.({ files: [shareFile] })) {
+        const shareBtn = document.createElement('button');
+        shareBtn.className     = 'btn btn-primary btn-sm';
+        shareBtn.style.cssText = 'margin-top:10px;';
+        shareBtn.textContent   = 'Save to Phone';
+        shareBtn.onclick = async () => {
+          const f = new File([blob], fname, { type: blob.type });
+          try { await navigator.share({ files: [f], title: 'My Wealth Projection' }); }
+          catch (e) { if (e.name !== 'AbortError') container.append(dlBtn); }
+        };
+        container.append(shareBtn);
+        hint.textContent = 'Tap "Save to Phone" to save to your device.';
+      } else {
+        const dlBtn = document.createElement('a');
+        dlBtn.href = blobUrl; dlBtn.download = fname;
+        dlBtn.className = 'btn btn-primary btn-sm';
+        dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
+        dlBtn.textContent = 'Download';
+        container.append(dlBtn);
+        hint.textContent = 'Tap Download — or hold the video → "Save to Photos".';
+      }
     } else {
-      // iOS without Web Share API (older iOS) — only hold-to-save works
-      hint.textContent = 'Long-press the video above, then tap "Save to Photos".';
+      // Desktop: standard download link
+      const dlBtn = document.createElement('a');
+      dlBtn.href = blobUrl; dlBtn.download = fname;
+      dlBtn.className = 'btn btn-primary btn-sm';
+      dlBtn.style.cssText = 'text-decoration:none;margin-top:10px;display:inline-block;';
+      dlBtn.textContent = 'Download';
+      container.append(dlBtn);
+      hint.textContent = 'Right-click → "Save video as…" or use the Download button.';
     }
 
     container.append(hint);
@@ -712,7 +733,8 @@ function _showVideoPlayer(blob, fname) {
 }
 
 function _showClipModal(url) {
-  const mobile  = /iPhone|iPad|Android/i.test(navigator.userAgent);
+  const isIOS   = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const mobile  = isIOS || /Android/i.test(navigator.userAgent);
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
 
@@ -723,21 +745,42 @@ function _showClipModal(url) {
     <h3 style="margin:0 0 8px;font-size:18px;">Your clip is ready!</h3>
     <p style="font-size:12px;color:var(--muted2,#7a83a8);margin:0 0 16px;">Link expires in 24 hours</p>
     <div id="_clip-url-display" style="background:rgba(255,255,255,.05);border-radius:8px;padding:10px 12px;word-break:break-all;font-size:11px;color:var(--teal,#00d4aa);text-align:left;margin-bottom:16px;"></div>
-    <div id="_clip-btns" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"></div>
-    ${mobile ? '<p style="font-size:11px;color:var(--muted2,#7a83a8);margin:14px 0 0;">Tap "Save Video" → hold the video → "Save to Photos"</p>' : ''}`;
+    <div id="_clip-btns" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"></div>`;
 
   card.querySelector('#_clip-url-display').textContent = url;
 
   const btns = card.querySelector('#_clip-btns');
 
-  if (mobile) {
+  if (isIOS && typeof navigator.share === 'function') {
+    // Fetch the video from the server into a blob, then share via native iOS share sheet
+    const saveBtn = document.createElement('button');
+    saveBtn.className = 'btn btn-primary';
+    saveBtn.textContent = 'Save to Camera Roll';
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Fetching…';
+      try {
+        const res = await fetch(url);
+        const videoBlob = await res.blob();
+        const ext  = videoBlob.type.includes('mp4') ? '.mp4' : '.webm';
+        const file = new File([videoBlob], `lifesim-projection${ext}`, { type: videoBlob.type });
+        await navigator.share({ files: [file], title: 'My Wealth Projection' });
+      } catch (e) {
+        if (e.name !== 'AbortError') window.open(url, '_blank');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save to Camera Roll';
+      }
+    };
+    btns.appendChild(saveBtn);
+  } else if (mobile) {
     const saveBtn = document.createElement('a');
     saveBtn.href = url;
     saveBtn.target = '_blank';
     saveBtn.rel = 'noopener';
     saveBtn.className = 'btn btn-primary';
     saveBtn.style.textDecoration = 'none';
-    saveBtn.textContent = 'Save Video';
+    saveBtn.textContent = 'Open Video';
     btns.appendChild(saveBtn);
   } else {
     const copyBtn = document.createElement('button');
