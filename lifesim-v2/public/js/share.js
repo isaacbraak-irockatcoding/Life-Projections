@@ -531,7 +531,7 @@ async function exportTikTok() {
         if (res.ok) {
           const { url } = await res.json();
           if (btn) { btn.textContent = '🎬 Record Clip'; btn.disabled = false; }
-          _showClipModal(url);
+          _showClipModal(url, blob, filename + ext);
           return;
         }
       } catch {}
@@ -661,12 +661,15 @@ function _showVideoPlayer(blob, fname) {
         saveBtn.style.cssText = 'margin-top:10px;';
         saveBtn.textContent   = 'Save to Camera Roll';
         saveBtn.onclick = async () => {
-          const f = new File([blob], fname, { type: blob.type });
+          const mimeType = blob.type.split(';')[0]; // strip codec params iOS may reject
+          const f = new File([blob], fname, { type: mimeType });
           try {
             await navigator.share({ files: [f], title: 'My Wealth Projection' });
           } catch (e) {
-            if (e.name !== 'AbortError')
+            if (e.name !== 'AbortError') {
+              showToast('Could not save — try long-pressing the video to save manually.', true);
               hint.textContent = 'Long-press the video above, then tap "Save to Photos".';
+            }
           }
         };
         container.append(saveBtn);
@@ -732,7 +735,7 @@ function _showVideoPlayer(blob, fname) {
   }
 }
 
-function _showClipModal(url) {
+function _showClipModal(url, blob, fname) {
   const isIOS   = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   const mobile  = isIOS || /Android/i.test(navigator.userAgent);
   const overlay = document.createElement('div');
@@ -751,25 +754,22 @@ function _showClipModal(url) {
 
   const btns = card.querySelector('#_clip-btns');
 
-  if (isIOS && typeof navigator.share === 'function') {
-    // Fetch the video from the server into a blob, then share via native iOS share sheet
+  if (isIOS && typeof navigator.share === 'function' && blob) {
+    // Use the blob we already have in memory — no fetch needed.
+    // navigator.share MUST be the first await in the handler; any prior await
+    // breaks iOS Safari's user-gesture chain and throws NotAllowedError.
     const saveBtn = document.createElement('button');
     saveBtn.className = 'btn btn-primary';
     saveBtn.textContent = 'Save to Camera Roll';
     saveBtn.onclick = async () => {
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Fetching…';
+      const mimeType = blob.type.split(';')[0]; // strip codec params iOS may reject
+      const f = new File([blob], fname || 'lifesim-projection.mp4', { type: mimeType });
       try {
-        const res = await fetch(url);
-        const videoBlob = await res.blob();
-        const ext  = videoBlob.type.includes('mp4') ? '.mp4' : '.webm';
-        const file = new File([videoBlob], `lifesim-projection${ext}`, { type: videoBlob.type });
-        await navigator.share({ files: [file], title: 'My Wealth Projection' });
+        await navigator.share({ files: [f], title: 'My Wealth Projection' });
       } catch (e) {
-        if (e.name !== 'AbortError') window.open(url, '_blank');
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.textContent = 'Save to Camera Roll';
+        if (e.name !== 'AbortError') {
+          showToast('Could not save — try long-pressing the video to save manually.', true);
+        }
       }
     };
     btns.appendChild(saveBtn);
