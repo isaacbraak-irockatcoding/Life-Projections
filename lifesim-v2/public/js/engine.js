@@ -254,7 +254,7 @@ function getEventImpact(age, events) {
 
 // Superset of getEventImpact — returns per-event detail arrays plus the same scalar totals
 // Also computes spouse income for marriage events dynamically via getSalary()
-function getEventImpactDetail(age, events) {
+function getEventImpactDetail(age, events, stateCode) {
   const oneTimeItems = [], annualItems = [], spouseIncomeItems = [];
   let oneTime = 0, annual = 0, spouseIncome = 0;
   (events || []).forEach(ev => {
@@ -276,7 +276,7 @@ function getEventImpactDetail(age, events) {
         const spouseYrsWorked = age - (ev.spouse_career_start_age ?? 22);
         if (spouseYrsWorked >= 0) {
           const grossSalary = getSalary(spouseJob, spouseYrsWorked);
-          const amount = Math.round(calcAfterTaxSalary(grossSalary, scenario.state_code));
+          const amount = Math.round(calcAfterTaxSalary(grossSalary, stateCode));
           spouseIncomeItems.push({ name: `${ev.name || 'Spouse'} — Income`, amount });
           spouseIncome += amount;
         }
@@ -387,7 +387,7 @@ function calculatePath(scenario) {
     const remainingDebt = getRemainingDebtBalance(scenario.debts, age, startAge);
     const netWorth      = assetTotal + savingsPool + homeTotal - remainingDebt;
 
-    const ev = getEventImpactDetail(age, scenario.events);
+    const ev = getEventImpactDetail(age, scenario.events, scenario.state_code);
 
     // Interest income: sum of each asset's return (cash pool earns 0%)
     const assetInterest      = assetPools.reduce((s, a) => s + a.value * a.rate, 0);
