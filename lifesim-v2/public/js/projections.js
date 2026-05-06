@@ -854,7 +854,7 @@ function renderCashflowSummary() {
                 <th>Age</th>
                 <th class="tbl-pos">Cash In</th>
                 <th class="tbl-neg">Cash Out + Capital</th>
-                <th>Net Flow</th>
+                <th>Ending Balance</th>
               </tr>
             </thead>
             <tbody>${tableRows}</tbody>
