@@ -4,6 +4,9 @@
    No DOM access; pure functions only.
 ══════════════════════════════════════════════ */
 
+// Annual interest rate charged on a negative cash balance (models credit card debt).
+const DEFICIT_RATE = 0.22;
+
 // Salary interpolation: start → year-35 peak → year-50 true peak
 function getSalary(job, yearsWorked) {
   if (yearsWorked <= 0)  return job.s0;
@@ -395,7 +398,7 @@ function calculatePath(scenario) {
     const poolInterestIncome  = 0;
     const interestIncome      = assetInterestIncome;
     const debtInterestBreakdown = getDebtInterestBreakdown(scenario.debts, age, startAge);
-    const interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
+    let interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
 
     // Living expenses for this year: use active lifestyle period (falls back to flat scenario fields)
     const yearsElapsed    = age - startAge;
@@ -409,6 +412,7 @@ function calculatePath(scenario) {
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;
     let debtPayments = 0;
+    let deficitInterest = 0;
     const isRetired = age >= scenario.retire_age;
 
     if (!isRetired) {
@@ -466,6 +470,14 @@ function calculatePath(scenario) {
       savingsPool  = savingsPool - livingExpenses - ev.oneTime - ev.annual - debtPayments;
     }
 
+    // Charge interest on any negative cash balance (models carrying credit card debt)
+    if (savingsPool < 0) {
+      deficitInterest  = Math.round(Math.abs(savingsPool) * DEFICIT_RATE);
+      savingsPool     -= deficitInterest;
+      rowExpenses     += deficitInterest;
+      interestExpense += deficitInterest;
+    }
+
     // Appreciate homes at end of each year
     homes.forEach(h => { h.value *= (1 + h.rate / 100); });
 
@@ -520,6 +532,7 @@ function calculatePath(scenario) {
       poolInterestIncome,
       livingExpenses:        Math.round(livingExpenses),
       tuitionDisbursement:   isRetired ? 0 : tuitionThisYear,
+      deficitInterest,
     });
   });
 

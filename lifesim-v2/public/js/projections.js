@@ -1269,7 +1269,7 @@ function renderActiveScenarioEditor() {
         <div class="field">
           <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
           <select id="debt-type-select">
-            ${DEBT_TYPES.map(t => `<option value="${t.id}">${t.label}</option>`).join('')}
+            ${DEBT_TYPES.map(t => `<option value="${t.id}"${t.id === 'other' ? ' selected' : ''}>${t.label}</option>`).join('')}
           </select>
         </div>
         <div class="field-row">
