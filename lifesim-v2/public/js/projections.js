@@ -715,6 +715,7 @@ function renderCashflowSummary() {
     const recurringOpen = !!_cashflowExpanded[`${s.id}-cf-recurring`];
     const capitalOpen   = !!_cashflowExpanded[`${s.id}-cf-capital`];
 
+    let runningBalance = 0;
     const tableRows = rows.map(r => {
       const totalCashIn    = r.isRetired ? 0 : ((r.income || 0) + (r.spouseIncome || 0) + (r.tuitionDisbursement || 0));
       const totalRecurring = (r.interestExpense || 0)
@@ -725,7 +726,8 @@ function renderCashflowSummary() {
       const totalCapital   = (r.eventOneTimeItems || []).reduce((s, i) => s + (i.amount || 0), 0)
                            + (r.totalAssetContribs || 0);
       const netFlow        = totalCashIn - totalRecurring - totalCapital;
-      const netColor       = netFlow >= 0 ? color : 'var(--coral)';
+      runningBalance      += netFlow;
+      const endingColor    = runningBalance >= 0 ? color : 'var(--coral)';
 
       let html = '';
 
@@ -734,7 +736,7 @@ function renderCashflowSummary() {
         <td class="tbl-age">${r.age}</td>
         <td class="tbl-pos">${totalCashIn ? fmtM(totalCashIn) : '—'}</td>
         <td class="tbl-neg">${totalRecurring + totalCapital ? fmtM(totalRecurring + totalCapital) : '—'}</td>
-        <td class="tbl-bal" style="color:${netColor};">${fmtM(netFlow)}</td>
+        <td class="tbl-bal" style="color:${endingColor};">${fmtM(runningBalance)}</td>
       </tr>`;
 
       // ── Cash In section ──
