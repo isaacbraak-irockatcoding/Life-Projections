@@ -13,14 +13,20 @@ function renderDebtsList() {
   const totalDebt = scenario.debts.reduce((s, d) => s + (d.balance || 0), 0);
   document.getElementById('debts-total').textContent = fmtM(totalDebt);
 
-  if (!scenario.debts.length) {
-    el.innerHTML = `<div class="empty"><div class="empty-icon">💳</div>
-      <p>No debts added yet. Debt-free is the dream!</p></div>`;
-    return;
-  }
+  // Check projection for an auto-tracked cash deficit in the first working year
+  const projRows   = calculatePath(scenario).rows;
+  const firstRow   = projRows[0] || {};
+  const deficitEntry = (firstRow.liabilityBreakdown || []).find(l => l.label === 'Cash Deficit');
+  const deficitBal   = deficitEntry ? deficitEntry.value : 0;
 
-  const scenarioStartAge = State.getScenario()?.start_age || 25;
-  el.innerHTML = scenario.debts.map(d => {
+  const scenarioStartAge = scenario.start_age || 25;
+
+  let html = '';
+  if (!scenario.debts.length && !deficitBal) {
+    html = `<div class="empty"><div class="empty-icon">💳</div>
+      <p>No debts added yet. Debt-free is the dream!</p></div>`;
+  } else {
+    html = scenario.debts.map(d => {
     const typeLabel = (DEBT_TYPES.find(t => t.id === d.type) || {}).label || d.type;
     const isFuture  = d.start_age && d.start_age > scenarioStartAge;
     // Estimated payoff in months
@@ -64,7 +70,30 @@ function renderDebtsList() {
         </div>
       </div>
     </div>`;
-  }).join('');
+    }).join('');
+
+    if (deficitBal > 0) {
+      html += `
+        <div class="asset-row card card-sm" style="border-left:3px solid var(--coral);opacity:0.9;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <div>
+              <div style="font-weight:600;font-size:13px;">Cash Deficit <span style="font-weight:400;font-size:11px;color:var(--muted2);">(auto-tracked)</span></div>
+              <div class="micro" style="margin-top:2px;">Credit Debt · 22% APR · ${fmtM(deficitBal)} balance at end of year 1</div>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted2);line-height:1.5;">
+            Your income doesn't cover expenses yet. The shortfall is automatically borrowed at 22% APR and compounds until income catches up.
+          </div>
+        </div>`;
+    }
+  }
+
+  html += `
+    <div style="margin-top:10px;padding:8px 10px;border-radius:6px;background:rgba(255,107,107,0.07);border:1px solid rgba(255,107,107,0.15);font-size:11px;color:var(--muted2);line-height:1.6;">
+      💡 <strong>Deficit rule:</strong> Any year expenses exceed income, the shortfall is automatically borrowed at <strong>22% APR</strong>. All negative cash flow goes toward this balance, which accrues interest until income recovers. See <em>Cash Deficit — Interest</em> in the Cash Flow tab and <em>Cash Deficit</em> in the Balance Sheet.
+    </div>`;
+
+  el.innerHTML = html;
 }
 
 // ── School loan auto-management ────────────────────────────────────────────────

@@ -759,7 +759,7 @@ function renderCashflowSummary() {
       // ── Cash In section ──
       html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'cashin')">
         <td class="tbl-age"><span class="bs-expand-arrow">${cashInOpen ? '▾' : '▸'}</span></td>
-        <td>${r.isRetired ? 'Retired — no salary' : `Cash In — ${fmtM(totalCashIn)}`}</td>
+        <td style="color:${color};">${r.isRetired ? 'Retired — no salary' : `Cash In: ${fmtM(totalCashIn)}`}</td>
         <td></td><td></td>
       </tr>`;
       if (cashInOpen) {
@@ -767,13 +767,13 @@ function renderCashflowSummary() {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="3" style="color:var(--muted2);">Retired — portfolio covers expenses (4% rule)</td></tr>`;
         } else {
           if ((r.income || 0) > 0) {
-            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Salary (after tax)</td><td class="tbl-pos">${fmtM(r.income || 0)}</td></tr>`;
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">Salary (after tax): ${fmtM(r.income || 0)}</td><td></td><td></td></tr>`;
           }
           (r.spouseIncomeItems || []).forEach(i => {
-            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-pos">${fmtM(i.amount)}</td></tr>`;
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">${i.name}: ${fmtM(i.amount)}</td><td></td><td></td></tr>`;
           });
           if ((r.tuitionDisbursement || 0) > 0) {
-            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Tuition — Loan</td><td class="tbl-pos">${fmtM(r.tuitionDisbursement)}</td></tr>`;
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">Tuition — Loan: ${fmtM(r.tuitionDisbursement)}</td><td></td><td></td></tr>`;
           }
         }
       }
@@ -782,27 +782,30 @@ function renderCashflowSummary() {
       html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'recurring')">
         <td class="tbl-age"><span class="bs-expand-arrow">${recurringOpen ? '▾' : '▸'}</span></td>
         <td></td>
-        <td>Cash Out — ${totalRecurring ? fmtM(totalRecurring) : '—'}</td>
+        <td style="color:var(--coral);">Cash Out: ${totalRecurring ? fmtM(totalRecurring) : '—'}</td>
         <td></td>
       </tr>`;
       if (recurringOpen) {
         (r.debtInterestBreakdown || []).forEach(d => {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${d.label} — Interest</td><td class="tbl-neg">${fmtM(d.interest)}</td></tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:#ff8c42;">${d.label} — Interest: ${fmtM(d.interest)}</td><td></td></tr>`;
         });
+        if ((r.deficitInterest || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:#ff8c42;">Cash Deficit — Interest (22% APR): ${fmtM(r.deficitInterest)}</td><td></td></tr>`;
+        }
         if ((r.debtPrincipalPayments || 0) > 0) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Debt — Principal Paydown</td><td class="tbl-neg">${fmtM(r.debtPrincipalPayments)}</td></tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:#ff8c42;">Debt — Principal Paydown: ${fmtM(r.debtPrincipalPayments)}</td><td></td></tr>`;
         }
         (r.eventAnnualItems || []).forEach(i => {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${i.name}</td><td class="tbl-neg">${fmtM(i.amount)}</td></tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:#ff8c42;">${i.name}: ${fmtM(i.amount)}</td><td></td></tr>`;
         });
         if ((r.livingExpenses || 0) > 0) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Living Expenses</td><td class="tbl-neg">${fmtM(r.livingExpenses)}</td></tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:#ff8c42;">Living Expenses: ${fmtM(r.livingExpenses)}</td><td></td></tr>`;
         }
         if ((r.tuitionDisbursement || 0) > 0) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Tuition Payment</td><td class="tbl-neg">${fmtM(r.tuitionDisbursement)}</td></tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:#ff8c42;">Tuition Payment: ${fmtM(r.tuitionDisbursement)}</td><td></td></tr>`;
         }
-        if (!((r.debtInterestBreakdown || []).length) && !(r.debtPrincipalPayments > 0) && !((r.eventAnnualItems || []).length) && !((r.livingExpenses || 0) > 0) && !((r.tuitionDisbursement || 0) > 0)) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
+        if (!((r.debtInterestBreakdown || []).length) && !(r.deficitInterest > 0) && !(r.debtPrincipalPayments > 0) && !((r.eventAnnualItems || []).length) && !((r.livingExpenses || 0) > 0) && !((r.tuitionDisbursement || 0) > 0)) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:var(--muted2);">None</td><td></td></tr>`;
         }
       }
 
