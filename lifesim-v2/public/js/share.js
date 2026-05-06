@@ -20,6 +20,9 @@ function renderShareTab() {
     <div class="card fade-up" style="margin-bottom:14px;">
       <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">📖 Your Life Story</div>
       ${generateRecap(scenario)}
+      <hr style="border:none;border-top:1px solid var(--border);margin:14px 0 12px;">
+      <div style="font-size:11px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">📱 TikTok Caption</div>
+      <div id="tiktok-caption-area"><p style="font-size:12px;color:var(--muted2);margin:0;">Loading…</p></div>
     </div>
 
     <div class="share-card fade-up">
@@ -62,9 +65,11 @@ function renderShareTab() {
     <div style="text-align:center;margin-top:20px;">
       <button class="btn btn-ghost btn-sm" onclick="handleLogout()">Sign Out</button>
     </div>`;
+  renderTikTokCaptionArea();
 }
 
 let _currentShareToken = null;
+let _tikTokCaptionText  = '';
 
 async function generateShareLink() {
   const scenario = State.getScenario();
@@ -229,28 +234,36 @@ function _sfStrokeRec(rc, x1, y1, x2, y2) {
 }
 
 function _drawRecordingFigure(rc, cx, cy, now, color, isWinner) {
-  const R   = isWinner ? 14 : 9;
+  const R   = isWinner ? 22 : 9;
   const bob = isWinner ? Math.sin(now / 150) * 4 : 0;
   rc.save();
 
   if (isWinner) {
     rc.shadowColor = color;
-    rc.shadowBlur  = 20 + Math.sin(now / 180) * 8;
+    rc.shadowBlur  = 45 + Math.sin(now / 180) * 15;
     const ringPhase = (now % 900) / 900;
     [0, 0.45].forEach(offset => {
       const p  = (ringPhase + offset) % 1;
       const rr = R * 2 + p * R * 5;
       rc.beginPath();
       rc.arc(cx, cy + bob - R * 2.3, rr, 0, Math.PI * 2);
-      rc.strokeStyle = color; rc.lineWidth = 2.5; rc.globalAlpha = (1 - p) * 0.5;
+      rc.strokeStyle = color; rc.lineWidth = 3; rc.globalAlpha = (1 - p) * 0.8;
       rc.stroke(); rc.globalAlpha = 1;
     });
   }
 
   rc.translate(cx, cy + bob);
   rc.strokeStyle = color; rc.fillStyle = color;
-  rc.lineWidth = isWinner ? 2.5 : 1.8;
+  rc.lineWidth = isWinner ? 4 : 1.8;
   rc.lineCap = 'round'; rc.lineJoin = 'round';
+
+  if (isWinner) {
+    rc.globalAlpha = 0.18;
+    rc.beginPath();
+    rc.arc(0, -R * 1.15, R * 2.8, 0, Math.PI * 2);
+    rc.fill();
+    rc.globalAlpha = 1;
+  }
 
   rc.beginPath();
   rc.arc(0, -R * 2.3, R * (isWinner ? 0.42 : 0.38), 0, Math.PI * 2);
@@ -337,21 +350,21 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
 
     // Only draw label when it won't collide with x-axis area (needs 20px clearance)
     if (gy < cy + ch - 20) {
-      rc.fillStyle = isZero ? '#b0b8d0' : '#5e6882';
-      rc.font      = `${isZero ? 'bold ' : ''}20px 'Outfit', sans-serif`;
+      rc.fillStyle = isZero ? '#d0d8f0' : '#9aa3c2';
+      rc.font      = `${isZero ? 'bold ' : ''}22px 'Outfit', sans-serif`;
       rc.textAlign = 'right';
       rc.fillText(fmtM(val), cx - 12, gy + 7);
     }
   }
 
   // "Net Worth" axis title — horizontal, above the top of the chart
-  rc.fillStyle = '#5e6882';
+  rc.fillStyle = '#9aa3c2';
   rc.font      = "18px 'Outfit', sans-serif";
   rc.textAlign = 'right';
   rc.fillText('Net Worth', cx - 12, cy - 10);
 
   // X-axis tick marks + age numbers
-  rc.fillStyle  = '#5e6882';
+  rc.fillStyle  = '#9aa3c2';
   rc.font       = "20px 'Outfit', sans-serif";
   rc.textAlign  = 'center';
   const nXTicks = 5;
@@ -365,7 +378,7 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
   }
 
   // "Age" axis title
-  rc.fillStyle = '#5e6882';
+  rc.fillStyle = '#9aa3c2';
   rc.font      = "18px 'Outfit', sans-serif";
   rc.textAlign = 'center';
   rc.fillText('Age', cx + cw / 2, cy + ch + 56);
@@ -448,6 +461,13 @@ async function exportTikTok() {
 
   if (btn) { btn.textContent = '⏺ Recording… 0%'; btn.disabled = true; }
 
+  function _fmtLive(v) {
+    const av = Math.abs(v);
+    if (av >= 1_000_000) return (v < 0 ? '-' : '') + '$' + (av / 1_000_000).toFixed(3) + 'M';
+    if (av >= 1_000)     return (v < 0 ? '-' : '') + '$' + (av / 1_000).toFixed(1) + 'K';
+    return (v < 0 ? '-$' : '$') + Math.round(av).toLocaleString();
+  }
+
   function _drawContents(elapsed) {
     rc.fillStyle = '#07080f';
     rc.fillRect(0, 0, RW, RH);
@@ -492,7 +512,7 @@ async function exportTikTok() {
       rc.textAlign = 'left';
       rc.fillStyle = clr;
       rc.font      = `bold ${nwFontSz}px monospace`;
-      rc.fillText(fmtM(live), pad, rowTop + nwFontSz * 0.72);
+      rc.fillText(_fmtLive(live), pad, rowTop + nwFontSz * 0.72);
 
       rc.fillStyle = '#9aa3c2';
       rc.font      = `${nameFontSz}px 'Outfit', sans-serif`;
@@ -808,6 +828,133 @@ function _showClipModal(url, blob, fname) {
 
 function escapeHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── TikTok caption (condensed plain-text synopsis) ────────────────────────
+function generateTikTokCaption(scenario) {
+  const _careers = (scenario.careers || []).slice().sort((a, b) => a.start_age - b.start_age);
+  const effectiveJobId = _careers.length > 0 ? _careers[0].job_id : scenario.job_id;
+  const job     = JOBS.find(j => j.id === effectiveJobId) || JOBS[0];
+  const jobName = effectiveJobId === 'custom' ? 'custom career' : (job.name || 'their career');
+  const s0      = scenario.custom_s0 != null ? scenario.custom_s0 : (job.s0 || 0);
+
+  const result   = calculatePath(scenario);
+  const finalWl  = result.path[result.path.length - 1];
+  const debts    = scenario.debts  || [];
+  const events   = scenario.events || [];
+  const retireAge = scenario.retire_age;
+  const totalDebt = debts.reduce((s, d) => s + (d.balance || 0), 0);
+
+  const mortgage    = debts.find(d => d.type === 'mortgage');
+  const studentLoan = debts.find(d => d.type === 'student_loan');
+  const carLoan     = debts.find(d => d.type === 'auto');
+  const kidsEvent     = events.find(e => e.event_type === 'children');
+  const marriageEvent = events.find(e => e.event_type === 'marriage');
+  const houseEvent    = events.find(e => e.event_type === 'house_purchase');
+
+  const parts = [];
+
+  // Career
+  parts.push(`${scenario.name} — ${jobName}, starting at ${fmtM(s0)}/yr.`);
+
+  // Debt
+  if (debts.length >= 3) {
+    parts.push(`${debts.length} debts totaling ${fmtM(totalDebt)} (chaos mode).`);
+  } else if (mortgage && studentLoan) {
+    parts.push(`${fmtM(mortgage.balance)} mortgage + ${fmtM(studentLoan.balance)} in student loans.`);
+  } else if (mortgage) {
+    parts.push(`${fmtM(mortgage.balance)} mortgage.`);
+  } else if (studentLoan) {
+    parts.push(`${fmtM(studentLoan.balance)} in student loans.`);
+  } else if (carLoan) {
+    parts.push(`${fmtM(carLoan.balance)} auto loan.`);
+  } else if (debts.length === 0) {
+    parts.push(`No debt.`);
+  }
+
+  // Life events
+  const lifeNotes = [];
+  if (marriageEvent) lifeNotes.push('getting married');
+  if (kidsEvent)     lifeNotes.push('having kids');
+  if (houseEvent && !mortgage) lifeNotes.push(`buying a house at ${houseEvent.at_age}`);
+  if (events.length > 0 && lifeNotes.length === 0) lifeNotes.push(`${events.length} life event${events.length > 1 ? 's' : ''}`);
+  if (lifeNotes.length) parts.push(lifeNotes.join(' + ').replace(/^./, c => c.toUpperCase()) + '.');
+
+  // Retirement + final wealth
+  const wealthTag = finalWl >= 5_000_000 ? '(generational wealth 👀)' :
+                    finalWl >= 2_000_000 ? '(very comfortable)' :
+                    finalWl >= 500_000   ? '(respectable)' :
+                    finalWl >= 0         ? '(work in progress)' : '(we need to talk)';
+  parts.push(`Retires at ${retireAge} with ${fmtM(finalWl)} projected ${wealthTag}.`);
+
+  return parts.join(' ');
+}
+
+function _tiktokComparisonNote(sA, sB) {
+  const wA = calculatePath(sA).path.slice(-1)[0];
+  const wB = calculatePath(sB).path.slice(-1)[0];
+  if (Math.abs(wA - wB) < 1000) {
+    return `The verdict: practically identical outcomes. Different paths, same destination.`;
+  }
+  const richer = wA >= wB ? sA : sB;
+  const diff   = Math.abs(wA - wB);
+  const retireDiff = Math.abs(sA.retire_age - sB.retire_age);
+  const earlierRetirer = sA.retire_age <= sB.retire_age ? sA : sB;
+
+  let note = `The difference: ${richer.name} ends up ${fmtM(diff)} ahead`;
+  if (retireDiff >= 1) {
+    if (earlierRetirer.name === richer.name) {
+      note += ` and retires ${retireDiff} year${retireDiff > 1 ? 's' : ''} earlier`;
+    } else {
+      note += `, but ${earlierRetirer.name} retires ${retireDiff} year${retireDiff > 1 ? 's' : ''} earlier`;
+    }
+  }
+  note += `. Same person, different choices.`;
+  return note;
+}
+
+async function renderTikTokCaptionArea() {
+  const el = document.getElementById('tiktok-caption-area');
+  if (!el) return;
+
+  const list   = State.getScenarioList();
+  const active = State.getScenario();
+  if (!active) return;
+
+  let captionText;
+
+  if (list.length === 2) {
+    const otherId = (list.find(s => s.id !== active.id) || {}).id;
+    if (otherId) {
+      try {
+        const other = await api.getScenario(otherId);
+        captionText = [
+          generateTikTokCaption(active),
+          generateTikTokCaption(other),
+          _tiktokComparisonNote(active, other),
+        ].join('\n\n');
+      } catch (_) {
+        captionText = generateTikTokCaption(active);
+      }
+    } else {
+      captionText = generateTikTokCaption(active);
+    }
+  } else {
+    captionText = generateTikTokCaption(active);
+  }
+
+  _tikTokCaptionText = captionText;
+  el.innerHTML = `
+    <div style="background:var(--bg2);border-radius:8px;padding:12px;font-size:12px;line-height:1.7;color:var(--text);white-space:pre-wrap;">${escapeHtml(captionText)}</div>
+    <button class="btn btn-ghost btn-sm" onclick="copyTikTokCaption()" style="margin-top:8px;width:100%;">Copy Caption</button>`;
+}
+
+function copyTikTokCaption() {
+  if (!_tikTokCaptionText) return;
+  navigator.clipboard.writeText(_tikTokCaptionText).then(
+    () => showToast('Caption copied!'),
+    () => showToast('Copy failed', true)
+  );
 }
 
 // ── Funny life recap generator ─────────────────────────────────────────────
