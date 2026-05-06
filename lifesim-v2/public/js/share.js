@@ -39,6 +39,13 @@ function renderShareTab() {
 
     <div class="card fade-up" style="margin-top:14px;">
       <h3>Export</h3>
+      <div style="margin-bottom:12px;">
+        <label class="micro" style="display:block;margin-bottom:5px;">Duration: <strong id="clip-dur-label">${_clipDurationSecs}s</strong></label>
+        <input type="range" min="5" max="60" step="5" value="${_clipDurationSecs}"
+          style="width:100%;accent-color:var(--teal);"
+          oninput="_clipDurationSecs=+this.value; document.getElementById('clip-dur-label').textContent=this.value+'s';">
+        <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted2);margin-top:2px;"><span>5s</span><span>60s</span></div>
+      </div>
       <div class="btn-row">
         <button class="btn btn-ghost btn-sm" id="tiktok-btn" onclick="exportTikTok()">🎬 Record Clip</button>
       </div>
@@ -70,6 +77,7 @@ function renderShareTab() {
 
 let _currentShareToken = null;
 let _tikTokCaptionText  = '';
+let _clipDurationSecs   = 15;
 
 async function generateShareLink() {
   const scenario = State.getScenario();
@@ -455,8 +463,9 @@ async function exportTikTok() {
   document.body.appendChild(recCanvas);
   const rc = recCanvas.getContext('2d');
 
-  const CHART_ANIM_MS = typeof _animDuration !== 'undefined' ? _animDuration : 9_000;
-  const DURATION      = CHART_ANIM_MS + 4_000;
+  const HOLD_MS       = 3_000;
+  const CHART_ANIM_MS = typeof _animDuration !== 'undefined' ? _animDuration : Math.max(2_000, _clipDurationSecs * 1_000 - HOLD_MS);
+  const DURATION      = CHART_ANIM_MS + HOLD_MS;
   const filename      = `lifesim-${(scenario.name || 'projection').replace(/\s+/g, '-').toLowerCase()}`;
 
   if (btn) { btn.textContent = '⏺ Recording… 0%'; btn.disabled = true; }
@@ -503,11 +512,14 @@ async function exportTikTok() {
     const nameFontSz = scenarios.length > 1 ? 22 : 26;
 
     scenarioStats.forEach((st, i) => {
-      const rowTop = panelTop + i * rowH + 18;
-      const nPts   = st.path.length;
-      const shown  = Math.max(2, Math.ceil(nPts * progress));
-      const live   = Math.round(st.path[Math.min(shown - 1, nPts - 1)]);
-      const clr    = st.netWorth < 0 ? '#ff6b6b' : st.color;
+      const rowTop    = panelTop + i * rowH + 18;
+      const nPts      = st.path.length;
+      const shown     = Math.max(2, Math.ceil(nPts * progress));
+      const pathIdx   = Math.min(shown - 1, nPts - 1);
+      const live      = Math.round(st.path[pathIdx] ?? 0);
+      const clr       = live < 0 ? '#ff6b6b' : st.color;
+      const startAge  = (scenarios[i] || scenario).start_age || 22;
+      const currentAge = Math.max(startAge, pathIdx);
 
       rc.textAlign = 'left';
       rc.fillStyle = clr;
@@ -516,7 +528,7 @@ async function exportTikTok() {
 
       rc.fillStyle = '#9aa3c2';
       rc.font      = `${nameFontSz}px 'Outfit', sans-serif`;
-      rc.fillText(st.name, pad, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
+      rc.fillText(`Age ${currentAge} · ${st.name}`, pad, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
     });
 
     rc.textAlign = 'center';
