@@ -643,52 +643,33 @@ function renderProjTable() {
       let html = `<tr class="bs-summary-row">
         <td class="tbl-age">${r.age}</td>
         <td class="tbl-pos bs-expandable" onclick="toggleBalanceSection(${s.id},'assets')">
-          <span class="bs-expand-arrow">${assetsOpen ? '▾' : '▸'}</span>${fmtM(r.totalAssets || 0)}
+          <span class="bs-expand-arrow">${assetsOpen ? '▾' : '▸'}</span>Assets: ${fmtM(r.totalAssets || 0)}
         </td>
         <td class="tbl-neg bs-expandable" onclick="toggleBalanceSection(${s.id},'liabilities')">
-          <span class="bs-expand-arrow">${liabOpen ? '▾' : '▸'}</span>${r.totalLiabilities ? fmtM(r.totalLiabilities) : '—'}
+          <span class="bs-expand-arrow">${liabOpen ? '▾' : '▸'}</span>Liabilities: ${r.totalLiabilities ? fmtM(r.totalLiabilities) : '—'}
         </td>
         <td class="tbl-bal" style="color:${r.balance >= 0 ? color : 'var(--coral)'};">${fmtM(r.balance)}</td>
       </tr>`;
 
       if (assetsOpen) {
         if ((r.savingsPool || 0) > 0) {
-          html += `<tr class="bs-detail-row">
-            <td class="tbl-age">└</td>
-            <td class="bs-detail-label" colspan="2">Cash / Savings</td>
-            <td class="tbl-pos">${fmtM(r.savingsPool)}</td>
-          </tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">Cash / Savings: ${fmtM(r.savingsPool)}</td><td></td><td></td></tr>`;
         }
         (r.assetBreakdown || []).forEach(a => {
-          html += `<tr class="bs-detail-row">
-            <td class="tbl-age">└</td>
-            <td class="bs-detail-label" colspan="2">${a.name}</td>
-            <td class="tbl-pos">${fmtM(a.value)}</td>
-          </tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">${a.name}: ${fmtM(a.value)}</td><td></td><td></td></tr>`;
         });
         (r.homeBreakdown || []).forEach(h => {
-          html += `<tr class="bs-detail-row">
-            <td class="tbl-age">└</td>
-            <td class="bs-detail-label" colspan="2">${h.name}</td>
-            <td class="tbl-pos">${fmtM(h.value)}</td>
-          </tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">${h.name}: ${fmtM(h.value)}</td><td></td><td></td></tr>`;
         });
       }
 
       if (liabOpen) {
         if ((r.liabilityBreakdown || []).length) {
           (r.liabilityBreakdown || []).forEach(d => {
-            html += `<tr class="bs-detail-row">
-              <td class="tbl-age">└</td>
-              <td class="bs-detail-label" colspan="2">${d.label}</td>
-              <td class="tbl-neg">${fmtM(d.value)}</td>
-            </tr>`;
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:#ff8c42;">${d.label}: ${fmtM(d.value)}</td><td></td></tr>`;
           });
         } else {
-          html += `<tr class="bs-detail-row">
-            <td class="tbl-age">└</td>
-            <td class="tbl-age bs-detail-label" colspan="3">No active debts</td>
-          </tr>`;
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td></td><td style="color:var(--muted2);">No active debts</td><td></td></tr>`;
         }
       }
 
