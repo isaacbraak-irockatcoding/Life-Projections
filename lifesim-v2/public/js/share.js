@@ -513,13 +513,14 @@ async function exportTikTok() {
 
     scenarioStats.forEach((st, i) => {
       const rowTop    = panelTop + i * rowH + 18;
-      const nPts      = st.path.length;
-      const shown     = Math.max(2, Math.ceil(nPts * progress));
-      const pathIdx   = Math.min(shown - 1, nPts - 1);
+      // Use the same trimmed-path length as the chart so progress maps identically
+      const startIdx  = st.path.findIndex(v => v !== null);
+      const trimLen   = startIdx >= 0 ? st.path.length - startIdx : st.path.length;
+      const shown     = Math.max(2, Math.ceil(trimLen * progress));
+      const pathIdx   = Math.min(startIdx + shown - 1, st.path.length - 1);
       const live      = Math.round(st.path[pathIdx] ?? 0);
       const clr       = live < 0 ? '#ff6b6b' : st.color;
-      const startAge  = (scenarios[i] || scenario).start_age || 22;
-      const currentAge = Math.max(startAge, pathIdx);
+      const currentAge = pathIdx;  // path index equals age
 
       rc.textAlign = 'left';
       rc.fillStyle = clr;
