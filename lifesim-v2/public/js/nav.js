@@ -91,6 +91,24 @@ function showApp() {
   document.getElementById('app-header').style.display = 'flex';
   document.getElementById('app-footer').style.display = '';
 
+  // Login button in header
+  const loginBtn = document.getElementById('login-btn');
+  if (loginBtn) {
+    const user = State.getUser();
+    const isGuest = !user || user.username.startsWith('guest_');
+    if (isGuest) {
+      loginBtn.textContent = 'Login';
+      loginBtn.className = 'login-btn';
+      loginBtn.onclick = () => { handleLogout(); setAuthMode('login'); };
+      loginBtn.style.display = '';
+    } else {
+      loginBtn.textContent = user.avatar ? `${user.avatar} ${user.username}` : user.username;
+      loginBtn.className = 'login-btn user-btn';
+      loginBtn.onclick = () => switchTab('auth');
+      loginBtn.style.display = '';
+    }
+  }
+
   // Guest banner
   const existing = document.getElementById('guest-banner');
   if (existing) existing.remove();

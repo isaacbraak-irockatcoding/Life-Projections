@@ -232,8 +232,38 @@ const milestonePlugin = {
 };
 Chart.register(milestonePlugin);
 
+function renderDeficitFlag() {
+  const el = document.getElementById('deficit-flag');
+  if (!el) return;
+  const scenario = State.getScenario();
+  if (!scenario) { el.innerHTML = ''; return; }
+
+  const result = calculatePath(scenario);
+  const firstWorkRow = result.rows.find(r => !r.isRetired);
+  if (!firstWorkRow || firstWorkRow.income >= firstWorkRow.expenses) {
+    el.innerHTML = '';
+    return;
+  }
+
+  const gap  = firstWorkRow.expenses - firstWorkRow.income;
+  const rate = 22;
+  el.innerHTML = `
+    <div style="background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);
+                border-radius:10px;padding:10px 14px;margin-bottom:12px;
+                display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12px;flex-wrap:wrap;">
+      <div>
+        <span style="color:var(--coral);font-weight:700;">⚠ Expenses exceed income</span>
+        <span style="color:var(--muted2);margin-left:6px;">
+          ${fmtM(gap)}/yr shortfall → borrowed at <strong style="color:var(--coral);">${rate}% APR</strong>
+        </span>
+      </div>
+      <span style="color:var(--muted2);">Income ${fmtM(firstWorkRow.income)} · Expenses ${fmtM(firstWorkRow.expenses)}</span>
+    </div>`;
+}
+
 function renderProjTab() {
   renderScenarioChips();
+  renderDeficitFlag();
   renderProjChart();
   renderActiveScenarioEditor();
 }
@@ -594,6 +624,7 @@ document.getElementById('proj-breakeven').innerHTML = '';
 
   // Live retirement tally
   renderRetirementTally(toRender, results);
+  renderDeficitFlag();
 
   // Breakeven (first two scenarios)
   const beEl = document.getElementById('proj-breakeven');

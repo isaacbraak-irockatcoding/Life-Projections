@@ -16,7 +16,10 @@
 <!-- ═══════════════ APP HEADER ═══════════════ -->
 <header class="app-header" id="app-header" style="display:none;">
   <img src="/images/logo.jpeg" alt="LifeSim Finance" style="height:32px;object-fit:contain;border-radius:6px;"/>
-<button class="save-btn" id="save-btn" onclick="State.save().then(()=>showToast('Saved'))">Saved</button>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button class="save-btn" id="save-btn" onclick="State.save().then(()=>showToast('Saved'))">Saved</button>
+    <button class="login-btn" id="login-btn" onclick="switchTab('auth')">Login</button>
+  </div>
 </header>
 
 <!-- ═══════════════ AUTH SCREEN ═══════════════ -->
@@ -28,6 +31,8 @@
   <div class="scenario-chips" id="scenario-chips"></div>
 
   <div class="container">
+    <!-- Expenses-exceed-income warning — populated by renderDeficitFlag() -->
+    <div id="deficit-flag"></div>
     <!-- Live retirement tally — populated by renderRetirementTally() -->
     <div id="retirement-tally"></div>
 
