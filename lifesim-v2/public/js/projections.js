@@ -240,13 +240,15 @@ function renderDeficitFlag() {
 
   const result = calculatePath(scenario);
   const firstWorkRow = result.rows.find(r => !r.isRetired);
-  if (!firstWorkRow || firstWorkRow.income >= firstWorkRow.expenses) {
+  if (!firstWorkRow) { el.innerHTML = ''; return; }
+
+  const totalCashIn = (firstWorkRow.income || 0) + (firstWorkRow.spouseIncome || 0) + (firstWorkRow.tuitionDisbursement || 0);
+  if (totalCashIn >= firstWorkRow.expenses) {
     el.innerHTML = '';
     return;
   }
 
-  const gap  = firstWorkRow.expenses - firstWorkRow.income;
-  const rate = 22;
+  const gap = firstWorkRow.expenses - totalCashIn;
   el.innerHTML = `
     <div style="background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);
                 border-radius:10px;padding:10px 14px;margin-bottom:12px;
@@ -254,10 +256,10 @@ function renderDeficitFlag() {
       <div>
         <span style="color:var(--coral);font-weight:700;">⚠ Expenses exceed income</span>
         <span style="color:var(--muted2);margin-left:6px;">
-          ${fmtM(gap)}/yr shortfall → borrowed at <strong style="color:var(--coral);">${rate}% APR</strong>
+          ${fmtM(gap)}/yr shortfall → borrowed at <strong style="color:var(--coral);">22% APR</strong>
         </span>
       </div>
-      <span style="color:var(--muted2);">Income ${fmtM(firstWorkRow.income)} · Expenses ${fmtM(firstWorkRow.expenses)}</span>
+      <span style="color:var(--muted2);">Cash In ${fmtM(totalCashIn)} · Expenses ${fmtM(firstWorkRow.expenses)}</span>
     </div>`;
 }
 
