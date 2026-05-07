@@ -192,6 +192,12 @@ CREATE INDEX IF NOT EXISTS idx_schools_scenario  ON schools(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_share_token       ON share_links(token);
 CREATE INDEX IF NOT EXISTS idx_comments_link     ON comments(share_link_id);
 CREATE INDEX IF NOT EXISTS idx_friends_pair      ON friendships(requester_id, addressee_id);
+
+-- Manual dollar-amount overrides for lifestyle tier fields (NULL = fall back to tier lookup)
+ALTER TABLE lifestyles ADD COLUMN IF NOT EXISTS le_housing_monthly  DOUBLE PRECISION DEFAULT NULL;
+ALTER TABLE lifestyles ADD COLUMN IF NOT EXISTS le_groceries_annual DOUBLE PRECISION DEFAULT NULL;
+ALTER TABLE lifestyles ADD COLUMN IF NOT EXISTS le_dining_annual    DOUBLE PRECISION DEFAULT NULL;
+ALTER TABLE lifestyles ADD COLUMN IF NOT EXISTS le_car_annual       DOUBLE PRECISION DEFAULT NULL;
 CREATE INDEX IF NOT EXISTS idx_groups_owner      ON groups(owner_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_g   ON group_members(group_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_u   ON group_members(user_id);

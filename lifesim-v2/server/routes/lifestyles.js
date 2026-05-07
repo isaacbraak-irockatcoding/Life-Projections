@@ -29,16 +29,20 @@ router.post('/:scenarioId/lifestyles', async (req, res, next) => {
       le_has_car = 0, le_pet_count = 0,
       le_phone_monthly = 0, le_healthcare_monthly = 0, le_clothing_monthly = 0,
       annual_expenses = 0,
+      le_housing_monthly = null, le_groceries_annual = null,
+      le_dining_annual = null, le_car_annual = null,
     } = req.body;
     const row = await db.get(`
       INSERT INTO lifestyles (scenario_id, start_age, le_housing_tier, le_utilities_monthly,
         le_groceries, le_dining, le_has_car, le_pet_count,
-        le_phone_monthly, le_healthcare_monthly, le_clothing_monthly, annual_expenses)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        le_phone_monthly, le_healthcare_monthly, le_clothing_monthly, annual_expenses,
+        le_housing_monthly, le_groceries_annual, le_dining_annual, le_car_annual)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `, [req.params.scenarioId, start_age, le_housing_tier, le_utilities_monthly,
         le_groceries, le_dining, le_has_car, le_pet_count,
-        le_phone_monthly, le_healthcare_monthly, le_clothing_monthly, annual_expenses]);
+        le_phone_monthly, le_healthcare_monthly, le_clothing_monthly, annual_expenses,
+        le_housing_monthly, le_groceries_annual, le_dining_annual, le_car_annual]);
     res.status(201).json(row);
   } catch (err) { next(err); }
 });
@@ -49,7 +53,8 @@ router.patch('/:scenarioId/lifestyles/:id', async (req, res, next) => {
     if (!await ownScenario(req.params.scenarioId, req.userId)) return res.status(404).json({ error: 'Not found' });
     const allowed = ['start_age', 'le_housing_tier', 'le_utilities_monthly',
                      'le_groceries', 'le_dining', 'le_has_car', 'le_pet_count',
-                     'le_phone_monthly', 'le_healthcare_monthly', 'le_clothing_monthly', 'annual_expenses'];
+                     'le_phone_monthly', 'le_healthcare_monthly', 'le_clothing_monthly', 'annual_expenses',
+                     'le_housing_monthly', 'le_groceries_annual', 'le_dining_annual', 'le_car_annual'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets = fields.map(f => `${f} = ?`).join(', ');

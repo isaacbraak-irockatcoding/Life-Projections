@@ -903,12 +903,12 @@ function calcLivingExpensesUI(s) {
   const DINING_COSTS    = { never: 0, sometimes: 1200, often: 3600, frequently: 7200 };
   const GROCERIES_COSTS = { basic: 2400, average: 3600, generous: 5400 };
   let total = 0;
-  total += (HOUSING_COSTS[s.le_housing_tier || 'modest'] || 1400) * 12;
+  total += (s.le_housing_monthly != null ? s.le_housing_monthly : (HOUSING_COSTS[s.le_housing_tier || 'modest'] || 1400)) * 12;
   total += (s.le_utilities_monthly || 0) * 12;
   total += (s.le_pet_count || 0) * 1500;
-  total += DINING_COSTS[s.le_dining || 'never'] || 0;
-  total += GROCERIES_COSTS[s.le_groceries || 'average'] || 3600;
-  if (s.le_has_car) total += 3600;
+  total += s.le_dining_annual    != null ? s.le_dining_annual    : (DINING_COSTS[s.le_dining || 'never'] || 0);
+  total += s.le_groceries_annual != null ? s.le_groceries_annual : (GROCERIES_COSTS[s.le_groceries || 'average'] || 3600);
+  total += s.le_car_annual       != null ? s.le_car_annual       : (s.le_has_car ? 3600 : 0);
   total += (s.le_phone_monthly || 0) * 12;
   total += (s.le_healthcare_monthly || 0) * 12;
   total += (s.le_clothing_monthly || 0) * 12;
@@ -1440,15 +1440,10 @@ function renderActiveScenarioEditor() {
                 onchange="updateLifestyle(${l.id},{start_age:+this.value})"/>
             </div>
             <div class="field" style="margin-bottom:10px;">
-              <label class="micro" style="display:block;margin-bottom:5px;">Housing Tier</label>
-              <select onchange="updateLifestyle(${l.id},{le_housing_tier:this.value})">
-                <option value="shared"      ${(l.le_housing_tier||'modest')==='shared'      ? 'selected':''}>Shared / roommates (~$700/mo)</option>
-                <option value="basic"       ${(l.le_housing_tier||'modest')==='basic'       ? 'selected':''}>Basic studio (~$1,000/mo)</option>
-                <option value="modest"      ${(l.le_housing_tier||'modest')==='modest'      ? 'selected':''}>Modest 1BR (~$1,400/mo)</option>
-                <option value="comfortable" ${(l.le_housing_tier||'modest')==='comfortable' ? 'selected':''}>Comfortable (~$2,000/mo)</option>
-                <option value="upscale"     ${(l.le_housing_tier||'modest')==='upscale'     ? 'selected':''}>Upscale (~$3,000/mo)</option>
-                <option value="luxury"      ${(l.le_housing_tier||'modest')==='luxury'      ? 'selected':''}>Luxury (~$5,000/mo)</option>
-              </select>
+              <label class="micro" style="display:block;margin-bottom:5px;">Housing ($/mo)</label>
+              <input type="number" min="0" placeholder="e.g. 1,400"
+                value="${l.le_housing_monthly != null ? l.le_housing_monthly : ({shared:700,basic:1000,modest:1400,comfortable:2000,upscale:3000,luxury:5000}[l.le_housing_tier||'modest']||1400)}"
+                onchange="updateLifestyle(${l.id},{le_housing_monthly:this.value===''?null:+this.value})"/>
             </div>
             <div class="field-row" style="margin-bottom:10px;">
               <div class="field">
@@ -1463,29 +1458,22 @@ function renderActiveScenarioEditor() {
               </div>
             </div>
             <div class="field" style="margin-bottom:10px;">
-              <label class="micro" style="display:block;margin-bottom:5px;">Groceries</label>
-              <select onchange="updateLifestyle(${l.id},{le_groceries:this.value})">
-                <option value="basic"    ${(l.le_groceries||'average')==='basic'    ? 'selected':''}>Basic (~$2,400/yr)</option>
-                <option value="average"  ${(l.le_groceries||'average')==='average'  ? 'selected':''}>Average (~$3,600/yr)</option>
-                <option value="generous" ${(l.le_groceries||'average')==='generous' ? 'selected':''}>Well-stocked (~$5,400/yr)</option>
-              </select>
+              <label class="micro" style="display:block;margin-bottom:5px;">Groceries ($/yr)</label>
+              <input type="number" min="0" placeholder="e.g. 3,600"
+                value="${l.le_groceries_annual != null ? l.le_groceries_annual : ({basic:2400,average:3600,generous:5400}[l.le_groceries||'average']||3600)}"
+                onchange="updateLifestyle(${l.id},{le_groceries_annual:this.value===''?null:+this.value})"/>
             </div>
             <div class="field" style="margin-bottom:10px;">
-              <label class="micro" style="display:block;margin-bottom:5px;">Dining Out</label>
-              <select onchange="updateLifestyle(${l.id},{le_dining:this.value})">
-                <option value="never"      ${(l.le_dining||'never')==='never'      ? 'selected':''}>Never (~$0/yr)</option>
-                <option value="sometimes"  ${(l.le_dining||'never')==='sometimes'  ? 'selected':''}>Sometimes (~$1,200/yr)</option>
-                <option value="often"      ${(l.le_dining||'never')==='often'      ? 'selected':''}>Often (~$3,600/yr)</option>
-                <option value="frequently" ${(l.le_dining||'never')==='frequently' ? 'selected':''}>Frequently (~$7,200/yr)</option>
-              </select>
+              <label class="micro" style="display:block;margin-bottom:5px;">Dining Out ($/yr)</label>
+              <input type="number" min="0" placeholder="e.g. 0"
+                value="${l.le_dining_annual != null ? l.le_dining_annual : ({never:0,sometimes:1200,often:3600,frequently:7200}[l.le_dining||'never']||0)}"
+                onchange="updateLifestyle(${l.id},{le_dining_annual:this.value===''?null:+this.value})"/>
             </div>
-            <div class="field-row" style="margin-bottom:10px;align-items:center;">
-              <label class="micro" style="flex:1;text-transform:none;letter-spacing:0;">Car (~$3,600/yr)</label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-                <input type="checkbox" ${l.le_has_car ? 'checked':''}
-                  onchange="updateLifestyle(${l.id},{le_has_car:this.checked?1:0})"/>
-                <span class="micro" style="text-transform:none;">Yes</span>
-              </label>
+            <div class="field" style="margin-bottom:10px;">
+              <label class="micro" style="display:block;margin-bottom:5px;">Car ($/yr)</label>
+              <input type="number" min="0" placeholder="e.g. 3,600"
+                value="${l.le_car_annual != null ? l.le_car_annual : (l.le_has_car ? 3600 : 0)}"
+                onchange="updateLifestyle(${l.id},{le_car_annual:this.value===''?null:+this.value})"/>
             </div>
             <div class="field-row" style="margin-bottom:10px;">
               <div class="field">

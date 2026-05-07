@@ -295,7 +295,10 @@ const HOUSING_COSTS_MAP = {
 };
 
 function calcHousingCost(scenario) {
-  return (HOUSING_COSTS_MAP[scenario.le_housing_tier || 'modest'] || 1400) * 12;
+  const monthly = scenario.le_housing_monthly != null
+    ? scenario.le_housing_monthly
+    : (HOUSING_COSTS_MAP[scenario.le_housing_tier || 'modest'] || 1400);
+  return monthly * 12;
 }
 
 function calcLivingExpenses(scenario) {
@@ -305,9 +308,9 @@ function calcLivingExpenses(scenario) {
   total += calcHousingCost(scenario);
   total += (scenario.le_utilities_monthly || 0) * 12;
   total += (scenario.le_pet_count || 0) * 1500;
-  total += DINING_COSTS[scenario.le_dining || 'never'] || 0;
-  total += GROCERIES_COSTS[scenario.le_groceries || 'average'] || 3600;
-  if (scenario.le_has_car) total += 3600;
+  total += scenario.le_dining_annual   != null ? scenario.le_dining_annual   : (DINING_COSTS[scenario.le_dining || 'never'] || 0);
+  total += scenario.le_groceries_annual != null ? scenario.le_groceries_annual : (GROCERIES_COSTS[scenario.le_groceries || 'average'] || 3600);
+  total += scenario.le_car_annual      != null ? scenario.le_car_annual      : (scenario.le_has_car ? 3600 : 0);
   total += (scenario.le_phone_monthly || 0) * 12;
   total += (scenario.le_healthcare_monthly || 0) * 12;
   total += (scenario.le_clothing_monthly || 0) * 12;
