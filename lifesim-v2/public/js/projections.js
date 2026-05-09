@@ -8,6 +8,12 @@ const charts = {};
 // Which sections are expanded per-session (global, survives scenario switches)
 const _openSections = { school: false, career: false, finances: false, events: false, living: false };
 
+// Finance sub-section: whether the add-asset or add-debt form is visible
+let _showAssetForm = false;
+let _showDebtForm  = false;
+// Lifestyle detail expansion: Set of lifestyle ids with detail fields visible
+const _openLifestyleDetails = new Set();
+
 // Time range for projection chart (null = All)
 let _projRange = null;
 // View mode: 'chart' or 'table'
@@ -179,6 +185,13 @@ function setViewMode(mode) {
 
 function toggleSection(key) {
   _openSections[key] = !_openSections[key];
+  renderActiveScenarioEditor();
+}
+
+function toggleAssetForm() { _showAssetForm = !_showAssetForm; renderActiveScenarioEditor(); }
+function toggleDebtForm()  { _showDebtForm  = !_showDebtForm;  renderActiveScenarioEditor(); }
+function toggleLifestyleDetails(id) {
+  if (_openLifestyleDetails.has(id)) { _openLifestyleDetails.delete(id); } else { _openLifestyleDetails.add(id); }
   renderActiveScenarioEditor();
 }
 
@@ -1242,82 +1255,131 @@ function renderActiveScenarioEditor() {
       <!-- ── Finances ── -->
       ${secHdr('finances', 'Finances', financeCount || '')}
       <div class="sec-body" style="display:${_openSections.finances ? '' : 'none'};">
+
+        <!-- Assets header + total -->
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
           <span class="micro">Assets</span>
           <div class="balance-total" id="assets-total" style="font-size:16px;">$0</div>
         </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
-          <select id="asset-type-select">
-            ${ASSET_TYPES.map(t => `<option value="${t.id}">${t.label}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field-row">
+
+        <!-- Simple mode: invest % of remaining cash -->
+        <div class="field-row" style="margin-bottom:8px;">
           <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Name</label>
-            <input type="text" id="asset-label" placeholder="Company 401(k)"/>
+            <label class="micro" style="display:block;margin-bottom:5px;">Invest % of remaining cash</label>
+            <input type="number" min="0" max="100" step="1" placeholder="0"
+              value="${s.invest_pct || ''}"
+              onchange="State.patchScenario({invest_pct:+this.value});State.save();renderProjChart()"/>
           </div>
           <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Value ($)</label>
-            <input type="number" id="asset-value" placeholder="0"/>
-          </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Annual Contribution ($)</label>
-            <input type="number" id="asset-contrib" placeholder="0"/>
-          </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Return %</label>
-            <input type="number" id="asset-rate" placeholder="7" value="7" step="0.5"/>
+            <label class="micro" style="display:block;margin-bottom:5px;">Return Rate %</label>
+            <input type="number" min="0" max="30" step="0.5" placeholder="7"
+              value="${s.invest_return_rate != null ? s.invest_return_rate : 7}"
+              onchange="State.patchScenario({invest_return_rate:+this.value});State.save();renderProjChart()"/>
           </div>
         </div>
-        <div class="field-row">
+        ${(s.invest_pct || 0) > 0 ? `
+        <p class="micro" style="color:var(--muted2);margin-top:-2px;margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">
+          After debts, events, lifestyle, and any specific asset contributions, ${s.invest_pct}% of what's left goes into the Auto-Invest Pool each year.
+        </p>` : ''}
+
+        <!-- Add specific asset toggle -->
+        <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:${_showAssetForm ? '10px' : '12px'};text-align:left;"
+          onclick="toggleAssetForm()">
+          ${_showAssetForm ? '▾' : '▸'} Add specific asset
+        </button>
+
+        <!-- Asset add-form (collapsed by default) -->
+        ${_showAssetForm ? `
+        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
           <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Acquired at age</label>
-            <input type="number" id="asset-start-age" placeholder="${s.start_age} (now)"/>
+            <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
+            <select id="asset-type-select">
+              ${ASSET_TYPES.map(t => `<option value="${t.id}">${t.label}</option>`).join('')}
+            </select>
           </div>
-        </div>
-        <button class="btn btn-primary" style="margin-bottom:16px;" onclick="addAsset()">Add Asset</button>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Name</label>
+              <input type="text" id="asset-label" placeholder="Company 401(k)"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Value ($)</label>
+              <input type="number" id="asset-value" placeholder="0"/>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Annual Contribution ($)</label>
+              <input type="number" id="asset-contrib" placeholder="0"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Return %</label>
+              <input type="number" id="asset-rate" placeholder="7" value="7" step="0.5"/>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Acquired at age</label>
+              <input type="number" id="asset-start-age" placeholder="${s.start_age} (now)"/>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:8px;" onclick="addAsset()">Add Asset</button>
+        </div>` : ''}
+
+        <!-- Asset list (always visible) -->
         <div id="assets-list"></div>
 
-        <div style="display:flex;justify-content:space-between;align-items:baseline;margin:16px 0 10px;">
+        <!-- Debts sub-header + Add Debt button -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 10px;">
           <span class="micro">Debts</span>
-          <div class="balance-total" style="font-size:16px;color:var(--coral);" id="debts-total">$0</div>
-        </div>
-        <div class="field">
-          <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
-          <select id="debt-type-select">
-            ${DEBT_TYPES.map(t => `<option value="${t.id}"${t.id === 'other' ? ' selected' : ''}>${t.label}</option>`).join('')}
-          </select>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Name</label>
-            <input type="text" id="debt-label" placeholder="Federal Student Loans"/>
-          </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Balance ($)</label>
-            <input type="number" id="debt-balance" placeholder="0"/>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div class="balance-total" style="font-size:16px;color:var(--coral);" id="debts-total">$0</div>
+            <button class="btn btn-ghost btn-sm" onclick="toggleDebtForm()"
+              style="padding:2px 10px;font-size:11px;">
+              ${_showDebtForm ? '▾ Cancel' : '+ Add Debt'}
+            </button>
           </div>
         </div>
-        <div class="field-row">
+
+        <!-- Debt add-form (collapsed by default) -->
+        ${_showDebtForm ? `
+        <div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:12px;">
           <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Rate %</label>
-            <input type="number" id="debt-rate" placeholder="5" value="5" step="0.1"/>
+            <label class="micro" style="display:block;margin-bottom:5px;">Type</label>
+            <select id="debt-type-select">
+              ${DEBT_TYPES.map(t => `<option value="${t.id}"${t.id === 'other' ? ' selected' : ''}>${t.label}</option>`).join('')}
+            </select>
           </div>
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Monthly Payment ($) — <a onclick="autoCalcDebtPayment()" style="font-size:10px;cursor:pointer;color:var(--teal);">Auto (10yr)</a></label>
-            <input type="number" id="debt-pmt" placeholder="0"/>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Name</label>
+              <input type="text" id="debt-label" placeholder="Federal Student Loans"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Balance ($)</label>
+              <input type="number" id="debt-balance" placeholder="0"/>
+            </div>
           </div>
-        </div>
-        <div class="field-row">
-          <div class="field">
-            <label class="micro" style="display:block;margin-bottom:5px;">Started at age</label>
-            <input type="number" id="debt-start-age" placeholder="${s.start_age} (now)"/>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Rate %</label>
+              <input type="number" id="debt-rate" placeholder="5" value="5" step="0.1"/>
+            </div>
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Monthly Payment ($) — <a onclick="autoCalcDebtPayment()" style="font-size:10px;cursor:pointer;color:var(--teal);">Auto (10yr)</a></label>
+              <input type="number" id="debt-pmt" placeholder="0"/>
+            </div>
           </div>
-        </div>
-        <button class="btn btn-primary" style="margin-bottom:16px;" onclick="addDebt()">Add Debt</button>
+          <div class="field-row">
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Started at age</label>
+              <input type="number" id="debt-start-age" placeholder="${s.start_age} (now)"/>
+            </div>
+          </div>
+          <button class="btn btn-primary" style="margin-top:8px;" onclick="addDebt()">Add Debt</button>
+        </div>` : ''}
+
+        <!-- Debt list (always visible) -->
         <div id="debts-list"></div>
       </div>
 
@@ -1427,8 +1489,10 @@ function renderActiveScenarioEditor() {
           return `
         ${lifestyles.length === 0 ? `<p class="micro" style="color:var(--muted2);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Add lifestyle periods below. Each period sets your living expenses from that age onward.</p>` : ''}
         ${lifestyles.map((l, i) => {
-          const nextStart = lifestyles[i + 1]?.start_age;
-          const ageRange  = nextStart ? `Ages ${l.start_age}–${nextStart}` : `Ages ${l.start_age}–∞`;
+          const nextStart    = lifestyles[i + 1]?.start_age;
+          const ageRange     = nextStart ? `Ages ${l.start_age}–${nextStart}` : `Ages ${l.start_age}–∞`;
+          const detailsOpen  = _openLifestyleDetails.has(l.id);
+          const hasPct       = (l.lifestyle_pct || 0) > 0;
           return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">Period ${i+1} — ${ageRange}</span>
@@ -1439,69 +1503,93 @@ function renderActiveScenarioEditor() {
               <input type="number" min="14" max="80" value="${l.start_age}"
                 onchange="updateLifestyle(${l.id},{start_age:+this.value})"/>
             </div>
-            <div class="field" style="margin-bottom:10px;">
-              <label class="micro" style="display:block;margin-bottom:5px;">Housing ($/mo)</label>
-              <input type="number" min="0" placeholder="e.g. 1,400"
-                value="${l.le_housing_monthly != null ? l.le_housing_monthly : ({shared:700,basic:1000,modest:1400,comfortable:2000,upscale:3000,luxury:5000}[l.le_housing_tier||'modest']||1400)}"
-                onchange="updateLifestyle(${l.id},{le_housing_monthly:this.value===''?null:+this.value})"/>
+
+            <!-- Simple mode: % of net income -->
+            <div class="field" style="margin-bottom:6px;">
+              <label class="micro" style="display:block;margin-bottom:5px;">% of net income (simple mode)</label>
+              <input type="number" min="0" max="100" step="1" placeholder="0"
+                value="${l.lifestyle_pct || ''}"
+                onchange="updateLifestyle(${l.id},{lifestyle_pct:this.value===''?0:+this.value})"/>
             </div>
-            <div class="field-row" style="margin-bottom:10px;">
-              <div class="field">
-                <label class="micro" style="display:block;margin-bottom:5px;">Monthly Utilities ($)</label>
-                <input type="number" placeholder="150" value="${l.le_utilities_monthly||''}"
-                  onchange="updateLifestyle(${l.id},{le_utilities_monthly:+this.value})"/>
+            ${hasPct
+              ? `<p class="micro" style="color:var(--accent);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">${l.lifestyle_pct}% of take-home pay · detail fields ignored while this is set</p>`
+              : (!detailsOpen ? `<p class="micro" style="color:var(--muted2);margin-bottom:8px;text-transform:none;letter-spacing:0;font-size:11px;">Set a % above, or expand details below to enter specific amounts.</p>` : '')}
+
+            <!-- More details toggle -->
+            <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:${detailsOpen ? '10px' : '6px'};text-align:left;"
+              onclick="toggleLifestyleDetails(${l.id})">
+              ${detailsOpen ? '▾ Hide details' : '▸ More details'}
+            </button>
+
+            <!-- Detailed expense fields (collapsed by default) -->
+            ${detailsOpen ? `
+            <div>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;">Housing ($/mo)</label>
+                <input type="number" min="0" placeholder="e.g. 1,400"
+                  value="${l.le_housing_monthly != null ? l.le_housing_monthly : ({shared:700,basic:1000,modest:1400,comfortable:2000,upscale:3000,luxury:5000}[l.le_housing_tier||'modest']||1400)}"
+                  onchange="updateLifestyle(${l.id},{le_housing_monthly:this.value===''?null:+this.value})"/>
               </div>
-              <div class="field">
-                <label class="micro" style="display:block;margin-bottom:5px;">Phone ($)</label>
-                <input type="number" placeholder="80" value="${l.le_phone_monthly||''}"
-                  onchange="updateLifestyle(${l.id},{le_phone_monthly:+this.value})"/>
+              <div class="field-row" style="margin-bottom:10px;">
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;">Monthly Utilities ($)</label>
+                  <input type="number" placeholder="150" value="${l.le_utilities_monthly||''}"
+                    onchange="updateLifestyle(${l.id},{le_utilities_monthly:+this.value})"/>
+                </div>
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;">Phone ($)</label>
+                  <input type="number" placeholder="80" value="${l.le_phone_monthly||''}"
+                    onchange="updateLifestyle(${l.id},{le_phone_monthly:+this.value})"/>
+                </div>
               </div>
-            </div>
-            <div class="field" style="margin-bottom:10px;">
-              <label class="micro" style="display:block;margin-bottom:5px;">Groceries ($/yr)</label>
-              <input type="number" min="0" placeholder="e.g. 3,600"
-                value="${l.le_groceries_annual != null ? l.le_groceries_annual : ({basic:2400,average:3600,generous:5400}[l.le_groceries||'average']||3600)}"
-                onchange="updateLifestyle(${l.id},{le_groceries_annual:this.value===''?null:+this.value})"/>
-            </div>
-            <div class="field" style="margin-bottom:10px;">
-              <label class="micro" style="display:block;margin-bottom:5px;">Dining Out ($/yr)</label>
-              <input type="number" min="0" placeholder="e.g. 0"
-                value="${l.le_dining_annual != null ? l.le_dining_annual : ({never:0,sometimes:1200,often:3600,frequently:7200}[l.le_dining||'never']||0)}"
-                onchange="updateLifestyle(${l.id},{le_dining_annual:this.value===''?null:+this.value})"/>
-            </div>
-            <div class="field" style="margin-bottom:10px;">
-              <label class="micro" style="display:block;margin-bottom:5px;">Car ($/yr)</label>
-              <input type="number" min="0" placeholder="e.g. 3,600"
-                value="${l.le_car_annual != null ? l.le_car_annual : (l.le_has_car ? 3600 : 0)}"
-                onchange="updateLifestyle(${l.id},{le_car_annual:this.value===''?null:+this.value})"/>
-            </div>
-            <div class="field-row" style="margin-bottom:10px;">
-              <div class="field">
-                <label class="micro" style="display:block;margin-bottom:5px;">Pets (~$1,500/pet)</label>
-                <input type="number" min="0" max="20" placeholder="0" value="${l.le_pet_count||0}"
-                  onchange="updateLifestyle(${l.id},{le_pet_count:+this.value})"/>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;">Groceries ($/yr)</label>
+                <input type="number" min="0" placeholder="e.g. 3,600"
+                  value="${l.le_groceries_annual != null ? l.le_groceries_annual : ({basic:2400,average:3600,generous:5400}[l.le_groceries||'average']||3600)}"
+                  onchange="updateLifestyle(${l.id},{le_groceries_annual:this.value===''?null:+this.value})"/>
               </div>
-              <div class="field">
-                <label class="micro" style="display:block;margin-bottom:5px;">Healthcare OOP ($)</label>
-                <input type="number" placeholder="150" value="${l.le_healthcare_monthly||''}"
-                  onchange="updateLifestyle(${l.id},{le_healthcare_monthly:+this.value})"/>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;">Dining Out ($/yr)</label>
+                <input type="number" min="0" placeholder="e.g. 0"
+                  value="${l.le_dining_annual != null ? l.le_dining_annual : ({never:0,sometimes:1200,often:3600,frequently:7200}[l.le_dining||'never']||0)}"
+                  onchange="updateLifestyle(${l.id},{le_dining_annual:this.value===''?null:+this.value})"/>
               </div>
-            </div>
-            <div class="field-row" style="margin-bottom:10px;">
-              <div class="field">
-                <label class="micro" style="display:block;margin-bottom:5px;">Clothing ($)</label>
-                <input type="number" placeholder="100" value="${l.le_clothing_monthly||''}"
-                  onchange="updateLifestyle(${l.id},{le_clothing_monthly:+this.value})"/>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;">Car ($/yr)</label>
+                <input type="number" min="0" placeholder="e.g. 3,600"
+                  value="${l.le_car_annual != null ? l.le_car_annual : (l.le_has_car ? 3600 : 0)}"
+                  onchange="updateLifestyle(${l.id},{le_car_annual:this.value===''?null:+this.value})"/>
               </div>
-              <div class="field">
-                <label class="micro" style="display:block;margin-bottom:5px;">Other Annual ($)</label>
-                <input type="number" placeholder="0" value="${l.annual_expenses||''}"
-                  onchange="updateLifestyle(${l.id},{annual_expenses:+this.value})"/>
+              <div class="field-row" style="margin-bottom:10px;">
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;">Pets (~$1,500/pet)</label>
+                  <input type="number" min="0" max="20" placeholder="0" value="${l.le_pet_count||0}"
+                    onchange="updateLifestyle(${l.id},{le_pet_count:+this.value})"/>
+                </div>
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;">Healthcare OOP ($)</label>
+                  <input type="number" placeholder="150" value="${l.le_healthcare_monthly||''}"
+                    onchange="updateLifestyle(${l.id},{le_healthcare_monthly:+this.value})"/>
+                </div>
               </div>
-            </div>
+              <div class="field-row" style="margin-bottom:10px;">
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;">Clothing ($)</label>
+                  <input type="number" placeholder="100" value="${l.le_clothing_monthly||''}"
+                    onchange="updateLifestyle(${l.id},{le_clothing_monthly:+this.value})"/>
+                </div>
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;">Other Annual ($)</label>
+                  <input type="number" placeholder="0" value="${l.annual_expenses||''}"
+                    onchange="updateLifestyle(${l.id},{annual_expenses:+this.value})"/>
+                </div>
+              </div>
+            </div>` : ''}
+
+            <!-- Est. annual living summary -->
             <div style="background:var(--bg3,var(--bg));border-radius:6px;padding:8px 10px;margin-top:4px;display:flex;justify-content:space-between;align-items:center;">
               <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Annual Living</span>
-              <span style="font-size:12px;font-weight:600;color:var(--accent);">${fmtM((l.annual_expenses||0) + calcLivingExpensesUI(l))}</span>
+              <span style="font-size:12px;font-weight:600;color:var(--accent);">${hasPct ? `${l.lifestyle_pct}% of net income` : fmtM((l.annual_expenses||0) + calcLivingExpensesUI(l))}</span>
             </div>
           </div>`;
         }).join('')}

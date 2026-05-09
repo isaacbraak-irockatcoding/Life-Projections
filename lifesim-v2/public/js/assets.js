@@ -69,10 +69,8 @@ async function addAsset() {
   try {
     const a = await api.createAsset(scenario.id, { type, label, value, annual_contribution: contrib, expected_return_rate: rate, start_age });
     State.addAsset(a);
-    // Clear form
-    ['asset-label','asset-value','asset-contrib','asset-start-age'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    renderAssetsList();
-    // Refresh projection if open
+    _showAssetForm = false;
+    renderActiveScenarioEditor();
     if (charts.proj) renderProjChart();
     showToast('Asset added');
   } catch (err) { showToast(err.message, true); }

@@ -360,6 +360,11 @@ function calculatePath(scenario) {
   // Debts are tracked as separate liabilities via getRemainingDebtBalance
   let savingsPool = 0;
 
+  // Auto-invest pool: receives invest_pct% of remaining free cash each year, compounds at invest_return_rate
+  const investRate = (scenario.invest_return_rate || 7) / 100;
+  const investPct  = (scenario.invest_pct || 0) / 100;
+  let investPool   = 0;
+
   // Age at which the user first buys a home
   const housePurchaseAge = (scenario.events || [])
     .filter(e => e.event_type === 'house_purchase')
@@ -387,12 +392,6 @@ function calculatePath(scenario) {
     // Both show in the cashflow table for transparency but don't affect the savings pool
     const tuitionThisYear = tuitionByAge[age] || 0;
 
-    // Net worth snapshot (before this year's growth) — used for retirement calculation
-    const assetTotal    = assetPools.reduce((s, a) => s + a.value, 0);
-    const homeTotal     = homes.reduce((s, h) => s + h.value, 0);
-    const remainingDebt = getRemainingDebtBalance(scenario.debts, age, startAge);
-    const netWorth      = assetTotal + savingsPool + homeTotal - remainingDebt;
-
     const ev = getEventImpactDetail(age, scenario.events, scenario.state_code);
 
     // Interest income: sum of each asset's return (cash pool earns 0%)
@@ -403,23 +402,15 @@ function calculatePath(scenario) {
     const debtInterestBreakdown = getDebtInterestBreakdown(scenario.debts, age, startAge);
     let interestExpense = Math.round(debtInterestBreakdown.reduce((s, d) => s + d.interest, 0));
 
-    // Living expenses for this year: use active lifestyle period (falls back to flat scenario fields)
-    const yearsElapsed    = age - startAge;
-    const isRenting       = age >= rentStartAge && age < rentEndAge;
-    const activeLifestyle = getLifestyleAtAge(scenario.lifestyles, age);
-    const lsSource        = activeLifestyle || scenario;
-    const yearLivingTotal = (lsSource.annual_expenses || 0) + calcLivingExpenses(lsSource);
-    const yearHousingCost = calcHousingCost(lsSource);
-    const livingExpenses  = (yearLivingTotal - (isRenting ? 0 : yearHousingCost)) * Math.pow(1.02, yearsElapsed);
-
     // Row variables — hoisted so they're available after the if/else for the row push
     let rowIncome = 0, rowExpenses = 0;
     let debtPayments = 0;
     let deficitInterest = 0;
     const isRetired = age >= scenario.retire_age;
 
+    // Hoist salary/afterTax before livingExpenses so lifestyle_pct can reference afterTax
+    let salary = 0;
     if (!isRetired) {
-      let salary = 0;
       if (hasMultiCareer) {
         const activeCareer = getCareerAtAge(careers, age);
         if (activeCareer) {
@@ -434,7 +425,33 @@ function calculatePath(scenario) {
         const yearsWorked = age - careerStartAge;
         salary = yearsWorked >= 0 ? getSalary(legacyEffectiveJob, yearsWorked) : 0;
       }
-      const afterTax     = salary > 0 ? calcAfterTaxSalary(salary, scenario.state_code, calcHealthInsuranceAnnual(scenario)) : 0;
+    }
+    const afterTax = (!isRetired && salary > 0)
+      ? calcAfterTaxSalary(salary, scenario.state_code, calcHealthInsuranceAnnual(scenario))
+      : 0;
+
+    // Living expenses for this year: use active lifestyle period (falls back to flat scenario fields)
+    // lifestyle_pct mode: X% of after-tax income replaces the detailed breakdown (working years only)
+    const yearsElapsed    = age - startAge;
+    const isRenting       = age >= rentStartAge && age < rentEndAge;
+    const activeLifestyle = getLifestyleAtAge(scenario.lifestyles, age);
+    const lsSource        = activeLifestyle || scenario;
+    let yearLivingTotal;
+    if (!isRetired && (lsSource.lifestyle_pct || 0) > 0) {
+      yearLivingTotal = afterTax * (lsSource.lifestyle_pct / 100);
+    } else {
+      yearLivingTotal = (lsSource.annual_expenses || 0) + calcLivingExpenses(lsSource);
+    }
+    const yearHousingCost = calcHousingCost(lsSource);
+    const livingExpenses  = (yearLivingTotal - (isRenting ? 0 : yearHousingCost)) * Math.pow(1.02, yearsElapsed);
+
+    // Net worth snapshot (before this year's growth) — used for retirement calculation
+    const assetTotal    = assetPools.reduce((s, a) => s + a.value, 0);
+    const homeTotal     = homes.reduce((s, h) => s + h.value, 0);
+    const remainingDebt = getRemainingDebtBalance(scenario.debts, age, startAge);
+    const netWorth      = assetTotal + investPool + savingsPool + homeTotal - remainingDebt;
+
+    if (!isRetired) {
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
 
       rowIncome   = Math.round(afterTax);
@@ -455,10 +472,15 @@ function calculatePath(scenario) {
           value:   a.value || 0,
         }));
 
-      // All leftover cash (after debt payments, events, asset contribs) accumulates at 0%
+      // Net cash remaining after all outflows (debt, events, asset contribs, living)
       const totalAssetContribsNow = assetPools.reduce((s, a) => s + a.contrib, 0);
       const netCashToPool = afterTax + ev.spouseIncome - debtPayments - ev.oneTime - ev.annual - totalAssetContribsNow - livingExpenses;
-      savingsPool = savingsPool + netCashToPool;
+
+      // Auto-invest pool: compound then receive invest_pct% of positive free cash
+      investPool = investPool * (1 + investRate);
+      const investAlloc = Math.max(0, netCashToPool) * investPct;
+      investPool += investAlloc;
+      savingsPool = savingsPool + netCashToPool - investAlloc;
     } else {
       // Retirement: assets compound at their return rates.
       // Actual living expenses + events + debts are deducted from the savings pool each year.
@@ -470,7 +492,8 @@ function calculatePath(scenario) {
       debtPayments = getDebtPayments(scenario.debts, age, startAge);
       rowExpenses  = Math.round(livingExpenses + ev.annual + ev.oneTime + debtPayments);
       assetPools.forEach(a => { a.value = a.value * (1 + a.rate); });
-      savingsPool  = savingsPool - livingExpenses - ev.oneTime - ev.annual - debtPayments;
+      investPool  = investPool * (1 + investRate);
+      savingsPool = savingsPool - livingExpenses - ev.oneTime - ev.annual - debtPayments;
     }
 
     // Charge interest on any negative cash balance (models carrying credit card debt)
@@ -488,12 +511,15 @@ function calculatePath(scenario) {
     const closingAssets  = assetPools.reduce((s, a) => s + a.value, 0);
     const closingHomes   = homes.reduce((s, h) => s + h.value, 0);
     const closingDebt    = getRemainingDebtBalance(scenario.debts, age + 1, startAge);
-    const closingBalance = Math.round(closingAssets + savingsPool + closingHomes - closingDebt);
+    const closingBalance = Math.round(closingAssets + investPool + savingsPool + closingHomes - closingDebt);
     path.push(closingBalance);
-    const assetBreakdown = assetPools.map(a => ({
-      name: ((scenario.assets || []).find(x => x.id === a.id) || {}).label || 'Asset',
-      value: Math.round(a.value),
-    }));
+    const assetBreakdown = [
+      ...assetPools.map(a => ({
+        name: ((scenario.assets || []).find(x => x.id === a.id) || {}).label || 'Asset',
+        value: Math.round(a.value),
+      })),
+      ...(investPct > 0 && investPool > 0 ? [{ name: 'Auto-Invest Pool', value: Math.round(investPool) }] : []),
+    ];
     const homeBreakdown = homes.map(h => ({ name: h.name, value: Math.round(h.value) }));
     const liabilityBreakdown = getRemainingDebtBreakdown(scenario.debts, age + 1, startAge);
 

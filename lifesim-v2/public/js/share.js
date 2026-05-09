@@ -501,10 +501,10 @@ async function exportTikTok() {
 
     const chartW = RW - pad * 2;
     const chartH = Math.min(availH - 16, Math.round(chartW * 0.6));
-    const chartY = titleH + Math.round((availH - chartH) / 2);
+    const chartY = titleH + 8;
     _drawRecordingChart(rc, scenarioStats, pad, chartY, chartW, chartH, progress, elapsed);
 
-    const panelTop = RH - statsH;
+    const panelTop = chartY + chartH + 16;
     rc.fillStyle = 'rgba(255,255,255,0.04)';
     rc.fillRect(0, panelTop, RW, statsH - 72);
 

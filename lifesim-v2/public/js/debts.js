@@ -195,8 +195,8 @@ async function addDebt() {
   try {
     const d = await api.createDebt(scenario.id, { type, label, balance, interest_rate: rate, monthly_payment: pmt, start_age });
     State.addDebt(d);
-    ['debt-label','debt-balance','debt-pmt','debt-start-age'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    renderDebtsList();
+    _showDebtForm = false;
+    renderActiveScenarioEditor();
     if (charts.proj) renderProjChart();
     showToast('Debt added');
   } catch (err) { showToast(err.message, true); }

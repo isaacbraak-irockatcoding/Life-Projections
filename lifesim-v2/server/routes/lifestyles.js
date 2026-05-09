@@ -31,18 +31,19 @@ router.post('/:scenarioId/lifestyles', async (req, res, next) => {
       annual_expenses = 0,
       le_housing_monthly = null, le_groceries_annual = null,
       le_dining_annual = null, le_car_annual = null,
+      lifestyle_pct = 0,
     } = req.body;
     const row = await db.get(`
       INSERT INTO lifestyles (scenario_id, start_age, le_housing_tier, le_utilities_monthly,
         le_groceries, le_dining, le_has_car, le_pet_count,
         le_phone_monthly, le_healthcare_monthly, le_clothing_monthly, annual_expenses,
-        le_housing_monthly, le_groceries_annual, le_dining_annual, le_car_annual)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        le_housing_monthly, le_groceries_annual, le_dining_annual, le_car_annual, lifestyle_pct)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       RETURNING *
     `, [req.params.scenarioId, start_age, le_housing_tier, le_utilities_monthly,
         le_groceries, le_dining, le_has_car, le_pet_count,
         le_phone_monthly, le_healthcare_monthly, le_clothing_monthly, annual_expenses,
-        le_housing_monthly, le_groceries_annual, le_dining_annual, le_car_annual]);
+        le_housing_monthly, le_groceries_annual, le_dining_annual, le_car_annual, lifestyle_pct]);
     res.status(201).json(row);
   } catch (err) { next(err); }
 });
@@ -54,7 +55,8 @@ router.patch('/:scenarioId/lifestyles/:id', async (req, res, next) => {
     const allowed = ['start_age', 'le_housing_tier', 'le_utilities_monthly',
                      'le_groceries', 'le_dining', 'le_has_car', 'le_pet_count',
                      'le_phone_monthly', 'le_healthcare_monthly', 'le_clothing_monthly', 'annual_expenses',
-                     'le_housing_monthly', 'le_groceries_annual', 'le_dining_annual', 'le_car_annual'];
+                     'le_housing_monthly', 'le_groceries_annual', 'le_dining_annual', 'le_car_annual',
+                     'lifestyle_pct'];
     const fields = Object.keys(req.body).filter(k => allowed.includes(k));
     if (!fields.length) return res.status(400).json({ error: 'No valid fields' });
     const sets = fields.map(f => `${f} = ?`).join(', ');

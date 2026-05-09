@@ -112,13 +112,13 @@ const State = (() => {
             le_has_rent, le_rent_monthly, le_pet_count, le_dining, le_has_car, le_utilities_monthly,
             le_housing_tier, le_groceries, le_phone_monthly, le_healthcare_monthly, le_clothing_monthly,
             health_insurance_monthly, health_insurance_coverage, health_insurance_plan, health_insurance_enabled,
-            rent_start_age, rent_end_age } = _s.scenario;
+            rent_start_age, rent_end_age, invest_pct, invest_return_rate } = _s.scenario;
     await api.saveScenario(id, { name, color, job_id, custom_s0, custom_s35, custom_s50,
                                   start_age, career_start_age, retire_age, annual_expenses, state_code,
                                   le_has_rent, le_rent_monthly, le_pet_count, le_dining, le_has_car, le_utilities_monthly,
                                   le_housing_tier, le_groceries, le_phone_monthly, le_healthcare_monthly, le_clothing_monthly,
                                   health_insurance_monthly, health_insurance_coverage, health_insurance_plan, health_insurance_enabled,
-                                  rent_start_age, rent_end_age });
+                                  rent_start_age, rent_end_age, invest_pct, invest_return_rate });
     // Update in the scenario list
     const idx = _s.scenarioList.findIndex(x => x.id === id);
     if (idx >= 0) Object.assign(_s.scenarioList[idx], { name, color, updated_at: Date.now() });
