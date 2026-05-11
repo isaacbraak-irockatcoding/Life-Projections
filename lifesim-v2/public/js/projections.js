@@ -900,7 +900,7 @@ function renderCashflowSummary() {
                 <th>Age</th>
                 <th class="tbl-pos">Cash In</th>
                 <th class="tbl-neg">Cash Out + Capital</th>
-                <th>Ending Balance</th>
+                <th>Ending Balance (Savings Account)</th>
               </tr>
             </thead>
             <tbody>${tableRows}</tbody>
@@ -1510,6 +1510,7 @@ function renderActiveScenarioEditor() {
               <input type="number" min="0" max="100" step="1" placeholder="0"
                 value="${l.lifestyle_pct || ''}"
                 onchange="updateLifestyle(${l.id},{lifestyle_pct:this.value===''?0:+this.value})"/>
+              <p class="micro" style="color:var(--muted2);margin-top:3px;text-transform:none;letter-spacing:0;font-size:11px;">Typical: ~70%</p>
             </div>
             ${hasPct
               ? `<p class="micro" style="color:var(--accent);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">${l.lifestyle_pct}% of take-home pay · detail fields ignored while this is set</p>`
