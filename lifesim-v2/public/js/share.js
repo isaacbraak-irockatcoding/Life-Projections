@@ -242,59 +242,49 @@ function _sfStrokeRec(rc, x1, y1, x2, y2) {
 }
 
 function _drawRecordingFigure(rc, cx, cy, now, color, isWinner) {
-  const R   = isWinner ? 22 : 9;
-  const bob = isWinner ? Math.sin(now / 150) * 4 : 0;
+  const R      = isWinner ? 22 : 11;
+  const bob    = isWinner ? Math.sin(now / 150) * 4 : 0;
+  const faceCy = cy + bob - R;
   rc.save();
 
+  // Pulsing rings around face (winner only)
   if (isWinner) {
-    rc.shadowColor = color;
-    rc.shadowBlur  = 45 + Math.sin(now / 180) * 15;
     const ringPhase = (now % 900) / 900;
     [0, 0.45].forEach(offset => {
       const p  = (ringPhase + offset) % 1;
-      const rr = R * 2 + p * R * 5;
+      const rr = R * 1.2 + p * R * 3;
       rc.beginPath();
-      rc.arc(cx, cy + bob - R * 2.3, rr, 0, Math.PI * 2);
-      rc.strokeStyle = color; rc.lineWidth = 3; rc.globalAlpha = (1 - p) * 0.8;
+      rc.arc(cx, faceCy, rr, 0, Math.PI * 2);
+      rc.strokeStyle = color; rc.lineWidth = 2.5; rc.globalAlpha = (1 - p) * 0.7;
       rc.stroke(); rc.globalAlpha = 1;
     });
   }
 
-  rc.translate(cx, cy + bob);
-  rc.strokeStyle = color; rc.fillStyle = color;
-  rc.lineWidth = isWinner ? 4 : 1.8;
-  rc.lineCap = 'round'; rc.lineJoin = 'round';
-
-  if (isWinner) {
-    rc.globalAlpha = 0.18;
-    rc.beginPath();
-    rc.arc(0, -R * 1.15, R * 2.8, 0, Math.PI * 2);
-    rc.fill();
-    rc.globalAlpha = 1;
-  }
-
+  // Face circle
+  rc.shadowColor = color;
+  rc.shadowBlur  = isWinner ? 45 + Math.sin(now / 180) * 15 : 8;
   rc.beginPath();
-  rc.arc(0, -R * 2.3, R * (isWinner ? 0.42 : 0.38), 0, Math.PI * 2);
+  rc.arc(cx, faceCy, R, 0, Math.PI * 2);
+  rc.fillStyle = '#07080f';
   rc.fill();
+  rc.strokeStyle = color; rc.lineWidth = isWinner ? 3 : 2;
+  rc.stroke();
+  rc.shadowBlur = 0;
 
-  if (isWinner) {
-    const dPhase = (now / 330) % (Math.PI * 2);
-    const aL = Math.sin(dPhase), aR = -Math.sin(dPhase);
-    const ls = Math.sin((now / 260) % (Math.PI * 2));
-    _sfStrokeRec(rc, 0, -R*1.9, 0, -R*0.5);
-    _sfStrokeRec(rc, 0, -R*1.55, -R*0.9, -R*1.55 + aL*R*1.1);
-    _sfStrokeRec(rc, 0, -R*1.55,  R*0.9, -R*1.55 + aR*R*1.1);
-    _sfStrokeRec(rc, 0, -R*0.5, -R*0.7 + ls*R*0.4,  R*0.6);
-    _sfStrokeRec(rc, 0, -R*0.5,  R*0.7 - ls*R*0.4,  R*0.6);
-  } else {
-    const phase = (now / 260) % (Math.PI * 2);
-    const ls = Math.sin(phase), as = Math.sin(phase + Math.PI);
-    _sfStrokeRec(rc, 0, -R*1.9, 0, -R*0.5);
-    _sfStrokeRec(rc, 0, -R*1.6,  as*R*0.5, -R*1.6 - R*0.45);
-    _sfStrokeRec(rc, 0, -R*1.6, -as*R*0.5, -R*1.6 - R*0.45);
-    _sfStrokeRec(rc, 0, -R*0.5,  ls*R*0.6, -R*0.5 + R*0.75);
-    _sfStrokeRec(rc, 0, -R*0.5, -ls*R*0.6, -R*0.5 + R*0.75);
-  }
+  // Dollar sign eyes
+  const eyeSz = Math.max(6, Math.round(R * 0.62));
+  rc.fillStyle = color;
+  rc.font = `bold ${eyeSz}px monospace`;
+  rc.textAlign = 'center'; rc.textBaseline = 'middle';
+  rc.fillText('$', cx - R * 0.3, faceCy - R * 0.12);
+  rc.fillText('$', cx + R * 0.3, faceCy - R * 0.12);
+
+  // Smile
+  rc.beginPath();
+  rc.arc(cx, faceCy + R * 0.08, R * 0.42, 0.25, Math.PI - 0.25);
+  rc.strokeStyle = color; rc.lineWidth = isWinner ? 2.5 : 1.5; rc.lineCap = 'round';
+  rc.stroke();
+
   rc.restore();
 }
 
@@ -336,7 +326,7 @@ function _drawRecordingChart(rc, stats, x, y, w, h, progress, elapsed) {
   const pRange = pMax - pMin;
 
   // Layout margins — generous left for labels, bottom for age + "Age" label, top for "Net Worth" title
-  const lm = 92, bm = 70, tm = 32, rm = 14;
+  const lm = 108, bm = 70, tm = 32, rm = 14;
   const cx = x + lm, cy = y + tm, cw = w - lm - rm, ch = h - bm - tm;
 
   const pxFn = (i) => cx + (i / (nPts - 1)) * cw;

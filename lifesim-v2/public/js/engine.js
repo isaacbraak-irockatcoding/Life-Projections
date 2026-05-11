@@ -437,13 +437,15 @@ function calculatePath(scenario) {
     const activeLifestyle = getLifestyleAtAge(scenario.lifestyles, age);
     const lsSource        = activeLifestyle || scenario;
     let yearLivingTotal;
-    if (!isRetired && (lsSource.lifestyle_pct || 0) > 0) {
+    const isPctMode = !isRetired && (lsSource.lifestyle_pct || 0) > 0;
+    if (isPctMode) {
       yearLivingTotal = afterTax * (lsSource.lifestyle_pct / 100);
     } else {
       yearLivingTotal = (lsSource.annual_expenses || 0) + calcLivingExpenses(lsSource);
     }
     const yearHousingCost = calcHousingCost(lsSource);
-    const livingExpenses  = (yearLivingTotal - (isRenting ? 0 : yearHousingCost)) * Math.pow(1.02, yearsElapsed);
+    const inflRate = isPctMode ? 0 : (lsSource.inflation_rate != null ? lsSource.inflation_rate / 100 : 0.02);
+    const livingExpenses  = (yearLivingTotal - (isRenting ? 0 : yearHousingCost)) * Math.pow(1 + inflRate, yearsElapsed);
 
     // Net worth snapshot (before this year's growth) — used for retirement calculation
     const assetTotal    = assetPools.reduce((s, a) => s + a.value, 0);

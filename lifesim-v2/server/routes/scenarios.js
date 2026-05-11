@@ -199,11 +199,11 @@ router.post('/:id/clone', async (req, res, next) => {
         await tdb.run(
           `INSERT INTO lifestyles (scenario_id, start_age, le_housing_tier, le_utilities_monthly, le_groceries, le_dining,
                                    le_has_car, le_pet_count, le_phone_monthly, le_healthcare_monthly, le_clothing_monthly,
-                                   annual_expenses, lifestyle_pct)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                   annual_expenses, lifestyle_pct, inflation_rate)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [id, ls.start_age, ls.le_housing_tier, ls.le_utilities_monthly, ls.le_groceries, ls.le_dining,
            ls.le_has_car, ls.le_pet_count, ls.le_phone_monthly, ls.le_healthcare_monthly, ls.le_clothing_monthly,
-           ls.annual_expenses, ls.lifestyle_pct || 0]
+           ls.annual_expenses, ls.lifestyle_pct || 0, ls.inflation_rate ?? 2]
         );
       }
       return id;

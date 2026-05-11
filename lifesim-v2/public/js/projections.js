@@ -1514,7 +1514,14 @@ function renderActiveScenarioEditor() {
             </div>
             ${hasPct
               ? `<p class="micro" style="color:var(--accent);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">${l.lifestyle_pct}% of take-home pay · detail fields ignored while this is set</p>`
-              : (!detailsOpen ? `<p class="micro" style="color:var(--muted2);margin-bottom:8px;text-transform:none;letter-spacing:0;font-size:11px;">Set a % above, or expand details below to enter specific amounts.</p>` : '')}
+              : `<div class="field" style="margin-bottom:8px;">
+                  <label class="micro" style="display:block;margin-bottom:5px;">Inflation Rate (%/yr)</label>
+                  <input type="number" min="0" max="10" step="0.5" placeholder="2"
+                    value="${l.inflation_rate != null ? l.inflation_rate : 2}"
+                    onchange="updateLifestyle(${l.id},{inflation_rate:+this.value})"/>
+                  <p class="micro" style="color:var(--muted2);margin-top:3px;text-transform:none;letter-spacing:0;font-size:11px;">How much these expenses grow each year. Set 0 to hold flat.</p>
+                </div>
+                ${!detailsOpen ? `<p class="micro" style="color:var(--muted2);margin-bottom:8px;text-transform:none;letter-spacing:0;font-size:11px;">Set a % above, or expand details below to enter specific amounts.</p>` : ''}`}
 
             <!-- More details toggle -->
             <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:${detailsOpen ? '10px' : '6px'};text-align:left;"

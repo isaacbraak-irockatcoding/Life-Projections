@@ -208,3 +208,5 @@ ALTER TABLE scenarios  ADD COLUMN IF NOT EXISTS invest_pct         DOUBLE PRECIS
 ALTER TABLE scenarios  ADD COLUMN IF NOT EXISTS invest_return_rate DOUBLE PRECISION NOT NULL DEFAULT 7;
 -- Lifestyle simple mode: if > 0, X% of after-tax income = total living cost (overrides detail fields)
 ALTER TABLE lifestyles ADD COLUMN IF NOT EXISTS lifestyle_pct      DOUBLE PRECISION NOT NULL DEFAULT 0;
+-- Configurable inflation rate for flat-dollar living expenses (% per year, default 2%)
+ALTER TABLE lifestyles ADD COLUMN IF NOT EXISTS inflation_rate     DOUBLE PRECISION NOT NULL DEFAULT 2;
