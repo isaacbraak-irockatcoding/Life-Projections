@@ -1200,6 +1200,12 @@ function renderActiveScenarioEditor() {
                 ${JOBS.map(j => `<option value="${j.id}"${j.id===c.job_id?' selected':''}>${j.name}</option>`).join('')}
               </select>
             </div>
+            ${c.job_id === 'custom' ? `
+            <div class="field">
+              <label class="micro" style="display:block;margin-bottom:5px;">Career Name</label>
+              <input type="text" value="${(c.label||'').replace(/"/g,'&quot;')}" placeholder="e.g. Construction Worker"
+                onchange="updateCareer(${c.id},{label:this.value})"/>
+            </div>` : ''}
             <div class="field-row">
               <div class="field">
                 <label class="micro" style="display:block;margin-bottom:5px;">Start Salary ($)</label>
@@ -1266,7 +1272,8 @@ function renderActiveScenarioEditor() {
                 const cs0  = c.custom_s0 != null ? c.custom_s0 : cJob.s0;
                 const bd   = calcTakeHomeBreakdown(cs0, s.state_code, healthInsuranceAnnual);
                 const ageRange = c.end_age != null ? `Age ${c.start_age}–${c.end_age}` : `Age ${c.start_age}+`;
-                return { label: `Career ${i+1} — ${cJob.name} (${ageRange})`, bd };
+                const careerName = (c.job_id === 'custom' && c.label) ? c.label : cJob.name;
+                return { label: `Career ${i+1} — ${careerName} (${ageRange})`, bd };
               })
             : [{ label: null, bd: calcTakeHomeBreakdown(effS0, s.state_code, healthInsuranceAnnual) }];
           return breakdownItems.map(({ label, bd }) => `
