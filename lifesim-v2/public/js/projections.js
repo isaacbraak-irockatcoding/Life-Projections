@@ -770,14 +770,17 @@ function renderCashflowSummary() {
 
     let runningBalance = 0;
     const tableRows = rows.map(r => {
-      const totalCashIn    = r.isRetired ? 0 : ((r.income || 0) + (r.spouseIncome || 0) + (r.tuitionDisbursement || 0));
+      const totalCashIn    = r.isRetired
+        ? (r.retirementPortfolioWithdrawal || 0)
+        : ((r.income || 0) + (r.spouseIncome || 0) + (r.tuitionDisbursement || 0));
       const totalRecurring = (r.interestExpense || 0)
                            + (r.eventAnnualItems || []).reduce((s, i) => s + (i.amount || 0), 0)
                            + (r.debtPrincipalPayments || 0)
                            + (r.livingExpenses || 0)
                            + (r.tuitionDisbursement || 0);
       const totalCapital   = (r.eventOneTimeItems || []).reduce((s, i) => s + (i.amount || 0), 0)
-                           + (r.totalAssetContribs || 0);
+                           + (r.totalAssetContribs || 0)
+                           + (r.investAlloc || 0);
       const netFlow        = totalCashIn - totalRecurring - totalCapital;
       runningBalance      += netFlow;
       const endingColor    = runningBalance >= 0 ? color : 'var(--coral)';
@@ -795,12 +798,16 @@ function renderCashflowSummary() {
       // ── Cash In section ──
       html += `<tr class="cf-section-hdr" onclick="toggleCashflowSection(${s.id},'cashin')">
         <td class="tbl-age"><span class="bs-expand-arrow">${cashInOpen ? '▾' : '▸'}</span></td>
-        <td style="color:${color};">${r.isRetired ? 'Retired — no salary' : `Cash In: ${fmtM(totalCashIn)}`}</td>
+        <td style="color:${color};">${r.isRetired ? `Portfolio Withdrawal: ${totalCashIn ? fmtM(totalCashIn) : '—'}` : `Cash In: ${fmtM(totalCashIn)}`}</td>
         <td></td><td></td>
       </tr>`;
       if (cashInOpen) {
         if (r.isRetired) {
-          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="3" style="color:var(--muted2);">Retired — portfolio covers expenses (4% rule)</td></tr>`;
+          if ((r.retirementPortfolioWithdrawal || 0) > 0) {
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">Portfolio Withdrawal: ${fmtM(r.retirementPortfolioWithdrawal)}</td><td></td><td></td></tr>`;
+          } else {
+            html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="3" style="color:var(--muted2);">Retired — portfolio covers expenses</td></tr>`;
+          }
         } else {
           if ((r.income || 0) > 0) {
             html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td style="color:#f5c518;">Salary (after tax): ${fmtM(r.income || 0)}</td><td></td><td></td></tr>`;
@@ -859,7 +866,10 @@ function renderCashflowSummary() {
         (r.assetContribBreakdown || []).forEach(a => {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">${a.name} — Contribution</td><td class="tbl-neg">${fmtM(a.contrib)}</td></tr>`;
         });
-        if (!((r.eventOneTimeItems || []).length) && !((r.assetContribBreakdown || []).length)) {
+        if ((r.investAlloc || 0) > 0) {
+          html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="bs-detail-label" colspan="2">Auto-Invest Pool — Contribution</td><td class="tbl-neg">${fmtM(r.investAlloc)}</td></tr>`;
+        }
+        if (!((r.eventOneTimeItems || []).length) && !((r.assetContribBreakdown || []).length) && !((r.investAlloc || 0) > 0)) {
           html += `<tr class="bs-detail-row"><td class="tbl-age">└</td><td class="tbl-age bs-detail-label" colspan="3">None</td></tr>`;
         }
       }
@@ -871,23 +881,18 @@ function renderCashflowSummary() {
           <td colspan="2">Compounding Returns (not cash income)</td>
           <td style="color:${color};">${fmtM(r.interestIncome)}</td>
         </tr>`;
-        if ((r.poolInterestIncome || 0) > 0 && (r.assetInterestIncome || 0) > 0) {
-          html += `<tr class="cf-reference-row">
-            <td class="tbl-age"></td>
-            <td colspan="2" style="padding-left:20px;">└ Savings Pool</td>
-            <td style="color:${color};">${fmtM(r.poolInterestIncome)}</td>
-          </tr>
-          <tr class="cf-reference-row">
-            <td class="tbl-age"></td>
-            <td colspan="2" style="padding-left:20px;">└ Investment Assets</td>
-            <td style="color:${color};">${fmtM(r.assetInterestIncome)}</td>
-          </tr>`;
-        } else if ((r.poolInterestIncome || 0) > 0) {
-          html += `<tr class="cf-reference-row">
-            <td class="tbl-age"></td>
-            <td colspan="2" style="padding-left:20px;">└ Savings Pool</td>
-            <td style="color:${color};">${fmtM(r.poolInterestIncome)}</td>
-          </tr>`;
+        const returnSources = [];
+        if ((r.poolInterestIncome   || 0) > 0) returnSources.push({ label: 'Savings Pool',      value: r.poolInterestIncome });
+        if ((r.assetInterestIncome  || 0) > 0) returnSources.push({ label: 'Investment Assets', value: r.assetInterestIncome });
+        if ((r.investInterestIncome || 0) > 0) returnSources.push({ label: 'Auto-Invest Pool',  value: r.investInterestIncome });
+        if (returnSources.length > 1) {
+          returnSources.forEach(src => {
+            html += `<tr class="cf-reference-row">
+              <td class="tbl-age"></td>
+              <td colspan="2" style="padding-left:20px;">└ ${src.label}</td>
+              <td style="color:${color};">${fmtM(src.value)}</td>
+            </tr>`;
+          });
         }
       }
 
