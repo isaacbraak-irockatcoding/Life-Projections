@@ -252,16 +252,23 @@ function renderDeficitFlag() {
   if (!scenario) { el.innerHTML = ''; return; }
 
   const result = calculatePath(scenario);
-  const firstWorkRow = result.rows.find(r => !r.isRetired);
-  if (!firstWorkRow) { el.innerHTML = ''; return; }
 
-  const totalCashIn = (firstWorkRow.income || 0) + (firstWorkRow.spouseIncome || 0) + (firstWorkRow.tuitionDisbursement || 0);
-  if (totalCashIn >= firstWorkRow.expenses) {
-    el.innerHTML = '';
-    return;
-  }
+  const deficitRows = (result.rows || []).filter(r => {
+    if (!r || r.isRetired) return false;
+    const cashIn = (r.income || 0) + (r.spouseIncome || 0) + (r.tuitionDisbursement || 0);
+    return cashIn < r.expenses;
+  });
 
-  const gap = firstWorkRow.expenses - totalCashIn;
+  if (deficitRows.length === 0) { el.innerHTML = ''; return; }
+
+  const firstRow = deficitRows[0];
+  const cashIn   = (firstRow.income || 0) + (firstRow.spouseIncome || 0) + (firstRow.tuitionDisbursement || 0);
+  const gap      = firstRow.expenses - cashIn;
+
+  const firstAge = deficitRows[0].age;
+  const lastAge  = deficitRows[deficitRows.length - 1].age;
+  const ageLabel = firstAge === lastAge ? `age ${firstAge}` : `ages ${firstAge}–${lastAge}`;
+
   el.innerHTML = `
     <div style="background:rgba(255,107,107,0.08);border:1px solid rgba(255,107,107,0.25);
                 border-radius:10px;padding:10px 14px;margin-bottom:12px;
@@ -269,10 +276,10 @@ function renderDeficitFlag() {
       <div>
         <span style="color:var(--coral);font-weight:700;">⚠ Expenses exceed income</span>
         <span style="color:var(--muted2);margin-left:6px;">
-          ${fmtM(gap)}/yr shortfall → borrowed at <strong style="color:var(--coral);">22% APR</strong>
+          ${ageLabel} · ${fmtM(gap)}/yr shortfall → borrowed at <strong style="color:var(--coral);">22% APR</strong>
         </span>
       </div>
-      <span style="color:var(--muted2);">Cash In ${fmtM(totalCashIn)} · Expenses ${fmtM(firstWorkRow.expenses)}</span>
+      <span style="color:var(--muted2);">Cash In ${fmtM(cashIn)} · Expenses ${fmtM(firstRow.expenses)}</span>
     </div>`;
 }
 
@@ -928,6 +935,44 @@ function calcLivingExpensesUI(s) {
   return total;
 }
 
+function estimateLifestyleBudget(s, l) {
+  const pct = (l.lifestyle_pct || 0) / 100;
+  if (!pct) return null;
+
+  let gross = 0;
+  const activeCareer = getCareerAtAge(s.careers, l.start_age);
+  if (activeCareer) {
+    const jobBase = JOBS.find(j => j.id === activeCareer.job_id) || JOBS[0];
+    const effJob = activeCareer.custom_s0 != null
+      ? { ...jobBase, s0: activeCareer.custom_s0, s35: activeCareer.custom_s35 || jobBase.s35, s50: activeCareer.custom_s50 || jobBase.s50 }
+      : jobBase;
+    gross = getSalary(effJob, Math.max(0, l.start_age - activeCareer.start_age));
+  } else {
+    const job = JOBS.find(j => j.id === s.job_id) || JOBS[0];
+    const effJob = s.custom_s0 != null
+      ? { ...job, s0: s.custom_s0, s35: s.custom_s35 || job.s35, s50: s.custom_s50 || job.s50 }
+      : job;
+    const careerStart = s.career_start_age || s.start_age || 22;
+    gross = getSalary(effJob, Math.max(0, l.start_age - careerStart));
+  }
+
+  const net    = calcAfterTaxSalary(gross, s.state_code, calcHealthInsuranceAnnual(s));
+  const budget = Math.round(net * pct);
+
+  return {
+    annualBudget:       budget,
+    housing_monthly:    Math.round(budget * 0.35 / 12),
+    utilities_monthly:  Math.round(budget * 0.05 / 12),
+    phone_monthly:      Math.round(budget * 0.02 / 12),
+    groceries_annual:   Math.round(budget * 0.07),
+    dining_annual:      Math.round(budget * 0.06),
+    car_annual:         Math.round(budget * 0.08),
+    healthcare_monthly: Math.round(budget * 0.04 / 12),
+    clothing_monthly:   Math.round(budget * 0.03 / 12),
+    other_annual:       Math.round(budget * 0.30),
+  };
+}
+
 function onLivingChange(field, value) {
   State.patchScenario({ [field]: value });
   renderActiveScenarioEditor();
@@ -1390,7 +1435,7 @@ function renderActiveScenarioEditor() {
         <div class="field-row">
           <div class="field">
             <label class="micro" style="display:block;margin-bottom:5px;">Event Name</label>
-            <input type="text" id="ev-name" placeholder="e.g. Buy a house"/>
+            <input type="text" id="ev-name" placeholder="Event name"/>
           </div>
           <div class="field">
             <label class="micro" style="display:block;margin-bottom:5px;">Emoji</label>
@@ -1493,6 +1538,7 @@ function renderActiveScenarioEditor() {
           const ageRange     = nextStart ? `Ages ${l.start_age}–${nextStart}` : `Ages ${l.start_age}–∞`;
           const detailsOpen  = _openLifestyleDetails.has(l.id);
           const hasPct       = (l.lifestyle_pct || 0) > 0;
+          const est          = hasPct ? estimateLifestyleBudget(s, l) : null;
           return `<div style="background:var(--bg2);border-radius:8px;padding:10px 12px;margin-bottom:10px;">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <span class="micro" style="text-transform:none;letter-spacing:0;font-weight:600;">Period ${i+1} — ${ageRange}</span>
@@ -1513,7 +1559,7 @@ function renderActiveScenarioEditor() {
               <p class="micro" style="color:var(--muted2);margin-top:3px;text-transform:none;letter-spacing:0;font-size:11px;">Typical: ~70%</p>
             </div>
             ${hasPct
-              ? `<p class="micro" style="color:var(--accent);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">${l.lifestyle_pct}% of take-home pay · detail fields ignored while this is set</p>`
+              ? `<p class="micro" style="color:var(--muted2);margin-bottom:10px;text-transform:none;letter-spacing:0;font-size:11px;">Estimates based on your income — adjust % above to change</p>`
               : `<div class="field" style="margin-bottom:8px;">
                   <label class="micro" style="display:block;margin-bottom:5px;">Inflation Rate (%/yr)</label>
                   <input type="number" min="0" max="10" step="0.5" placeholder="2"
@@ -1521,7 +1567,9 @@ function renderActiveScenarioEditor() {
                     onchange="updateLifestyle(${l.id},{inflation_rate:+this.value})"/>
                   <p class="micro" style="color:var(--muted2);margin-top:3px;text-transform:none;letter-spacing:0;font-size:11px;">How much these expenses grow each year. Set 0 to hold flat.</p>
                 </div>
-                ${!detailsOpen ? `<p class="micro" style="color:var(--muted2);margin-bottom:8px;text-transform:none;letter-spacing:0;font-size:11px;">Set a % above, or expand details below to enter specific amounts.</p>` : ''}`}
+                <p class="micro" style="color:var(--muted2);margin-bottom:8px;text-transform:none;letter-spacing:0;font-size:11px;">
+                  <strong style="color:var(--muted);">Two options:</strong> set a % above for quick auto-estimates based on your income, or leave it empty and expand "More details" below to enter your own amounts.
+                </p>`}
 
             <!-- More details toggle -->
             <button class="btn btn-ghost btn-sm" style="width:100%;margin-bottom:${detailsOpen ? '10px' : '6px'};text-align:left;"
@@ -1530,7 +1578,49 @@ function renderActiveScenarioEditor() {
             </button>
 
             <!-- Detailed expense fields (collapsed by default) -->
-            ${detailsOpen ? `
+            ${detailsOpen ? (hasPct && est ? `
+            <div>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Housing ($/mo) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.housing_monthly.toLocaleString()}</div>
+              </div>
+              <div class="field-row" style="margin-bottom:10px;">
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Monthly Utilities ($) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                  <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.utilities_monthly.toLocaleString()}</div>
+                </div>
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Phone ($) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                  <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.phone_monthly.toLocaleString()}</div>
+                </div>
+              </div>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Groceries ($/yr) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.groceries_annual.toLocaleString()}</div>
+              </div>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Dining Out ($/yr) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.dining_annual.toLocaleString()}</div>
+              </div>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Car ($/yr) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.car_annual.toLocaleString()}</div>
+              </div>
+              <div class="field-row" style="margin-bottom:10px;">
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Healthcare OOP ($) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                  <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.healthcare_monthly.toLocaleString()}</div>
+                </div>
+                <div class="field">
+                  <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Clothing ($) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                  <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.clothing_monthly.toLocaleString()}</div>
+                </div>
+              </div>
+              <div class="field" style="margin-bottom:10px;">
+                <label class="micro" style="display:block;margin-bottom:5px;color:var(--muted2);">Other Annual ($) <span style="font-weight:400;font-style:italic;">· est.</span></label>
+                <div style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:13px;color:var(--muted2);">${est.other_annual.toLocaleString()}</div>
+              </div>
+            </div>` : `
             <div>
               <div class="field" style="margin-bottom:10px;">
                 <label class="micro" style="display:block;margin-bottom:5px;">Housing ($/mo)</label>
@@ -1592,12 +1682,12 @@ function renderActiveScenarioEditor() {
                     onchange="updateLifestyle(${l.id},{annual_expenses:+this.value})"/>
                 </div>
               </div>
-            </div>` : ''}
+            </div>`) : ''}
 
             <!-- Est. annual living summary -->
             <div style="background:var(--bg3,var(--bg));border-radius:6px;padding:8px 10px;margin-top:4px;display:flex;justify-content:space-between;align-items:center;">
               <span class="micro" style="text-transform:none;letter-spacing:0;">Est. Annual Living</span>
-              <span style="font-size:12px;font-weight:600;color:var(--accent);">${hasPct ? `${l.lifestyle_pct}% of net income` : fmtM((l.annual_expenses||0) + calcLivingExpensesUI(l))}</span>
+              <span style="font-size:12px;font-weight:600;color:var(--accent);">${hasPct && est ? `${l.lifestyle_pct}% · ~${fmtM(est.annualBudget)}/yr` : hasPct ? `${l.lifestyle_pct}% of net income` : fmtM((l.annual_expenses||0) + calcLivingExpensesUI(l))}</span>
             </div>
           </div>`;
         }).join('')}

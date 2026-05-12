@@ -20,11 +20,11 @@ const EVENT_COLORS = ['#38bdf8', '#f472b6', '#34d399', '#fb923c', '#e879f9', '#f
 const AVATARS = ['🦊', '🚀', '💎', '🌊', '✨', '🍀', '🦁', '🎯', '🐋', '🪐'];
 
 const EVENT_TYPES = [
-  { id: 'house_purchase', label: 'House Purchase', emoji: '🏠', defaultCost: 60000, defaultAnnual: -18000, defaultYears: 30, defaultHomeValue: 400000, defaultAppreciationRate: 3 },
-{ id: 'inheritance',    label: 'Inheritance',    emoji: '💰', defaultCost: -50000, defaultAnnual: 0,     defaultYears: 1  },
-  { id: 'marriage',       label: 'Marriage',       emoji: '💍', defaultCost: 25000, defaultAnnual: 0,      defaultYears: 40 },
-  { id: 'children',       label: 'Children',       emoji: '👶', defaultCost: 15000, defaultAnnual: -10000, defaultYears: 18 },
-  { id: 'custom',         label: 'Custom',         emoji: '📌', defaultCost: 0,     defaultAnnual: 0,      defaultYears: 1  },
+  { id: 'house_purchase', label: 'House Purchase', emoji: '🏠', defaultName: 'Buy a House',  defaultCost: 60000, defaultAnnual: -18000, defaultYears: 30, defaultHomeValue: 400000, defaultAppreciationRate: 3 },
+  { id: 'inheritance',    label: 'Inheritance',    emoji: '💰', defaultName: 'Inheritance',  defaultCost: -50000, defaultAnnual: 0,     defaultYears: 1  },
+  { id: 'marriage',       label: 'Marriage',       emoji: '💍', defaultName: 'Marriage',     defaultCost: 25000, defaultAnnual: 0,      defaultYears: 40 },
+  { id: 'children',       label: 'Children',       emoji: '👶', defaultName: 'New Child',    defaultCost: 15000, defaultAnnual: -10000, defaultYears: 18 },
+  { id: 'custom',         label: 'Custom',         emoji: '📌', defaultName: '',             defaultCost: 0,     defaultAnnual: 0,      defaultYears: 1  },
 ];
 
 const ASSET_TYPES = [

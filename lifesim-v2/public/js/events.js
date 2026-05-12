@@ -76,6 +76,15 @@ function applyEventTypeDefaults(typeId) {
   if (yearsEl  && !yearsEl.value)  yearsEl.value  = t.defaultYears;
   if (emojiEl  && !emojiEl.value)  emojiEl.value  = t.emoji;
 
+  const nameEl = document.getElementById('ev-name');
+  if (nameEl) {
+    const knownDefaults = EVENT_TYPES.map(x => x.defaultName).filter(Boolean);
+    if (!nameEl.value || knownDefaults.includes(nameEl.value)) {
+      nameEl.value = t.defaultName || '';
+      nameEl.placeholder = t.defaultName ? `e.g. ${t.defaultName}` : 'Event name';
+    }
+  }
+
   const isHouse    = typeId === 'house_purchase';
   const isMarriage = typeId === 'marriage';
   const houseFields  = document.getElementById('ev-house-fields');
