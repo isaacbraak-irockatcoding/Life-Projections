@@ -471,27 +471,28 @@ async function exportTikTok() {
     rc.fillStyle = '#07080f';
     rc.fillRect(0, 0, RW, RH);
 
-    rc.textAlign = 'center';
-    rc.fillStyle = scenarioStats[0].color;
-    rc.font = "bold 38px 'Outfit', sans-serif";
-    rc.fillText('My Wealth Projection', RW / 2, 130);
-    rc.fillStyle = '#7a83a8';
-    rc.font = "24px 'Outfit', sans-serif";
-    rc.fillText(
-      scenarios.length > 1 ? `${scenarios.length} Scenarios Compared` : scenario.name,
-      RW / 2, 174
-    );
-
     const pad    = 24;
     const titleH = 200;
     const rowH   = scenarios.length > 1 ? 118 : 140;
     const statsH = scenarios.length * rowH + 72;
-    const availH = RH - titleH - statsH;
     const progress = Math.min(1, elapsed / CHART_ANIM_MS);
 
     const chartW = RW - pad * 2;
-    const chartH = Math.min(availH - 16, Math.round(chartW * 0.6));
-    const chartY = titleH + 8;
+    const chartH = Math.round(chartW * 0.6);
+    const totalContentH = titleH + 8 + chartH + 16 + (statsH - 72);
+    const offsetY = Math.max(0, Math.round((RH - totalContentH) / 2 - 40));
+    const chartY = offsetY + titleH + 8;
+
+    rc.textAlign = 'center';
+    rc.fillStyle = scenarioStats[0].color;
+    rc.font = "bold 38px 'Outfit', sans-serif";
+    rc.fillText('My Wealth Projection', RW / 2, offsetY + 130);
+    rc.fillStyle = '#7a83a8';
+    rc.font = "24px 'Outfit', sans-serif";
+    rc.fillText(
+      scenarios.length > 1 ? `${scenarios.length} Scenarios Compared` : scenario.name,
+      RW / 2, offsetY + 174
+    );
     _drawRecordingChart(rc, scenarioStats, pad, chartY, chartW, chartH, progress, elapsed);
 
     const panelTop = chartY + chartH + 16;

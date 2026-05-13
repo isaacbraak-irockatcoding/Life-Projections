@@ -15,7 +15,7 @@ const JOBS = [
   { id: 'custom',      name: '✏️ Custom Salary',   s0: 60000,  s35: 100000, s50: 115000 },
 ];
 
-const PATH_COLORS = ['#00d4aa', '#a78bfa', '#f0a040', '#38bdf8', '#f472b6', '#34d399'];
+const PATH_COLORS = ['#00d4aa', '#a78bfa', '#f0a040', '#38bdf8', '#f472b6', '#34d399', '#ef4444', '#eab308', '#3b82f6'];
 const EVENT_COLORS = ['#38bdf8', '#f472b6', '#34d399', '#fb923c', '#e879f9', '#f87171'];
 const AVATARS = ['🦊', '🚀', '💎', '🌊', '✨', '🍀', '🦁', '🎯', '🐋', '🪐'];
 
