@@ -276,12 +276,12 @@ function _drawRecordingFigure(rc, cx, cy, now, color, isWinner) {
   rc.fillStyle = color;
   rc.font = `bold ${eyeSz}px monospace`;
   rc.textAlign = 'center'; rc.textBaseline = 'middle';
-  rc.fillText('$', cx - R * 0.3, faceCy - R * 0.12);
-  rc.fillText('$', cx + R * 0.3, faceCy - R * 0.12);
+  rc.fillText('$', cx - R * 0.3, faceCy - R * 0.28);
+  rc.fillText('$', cx + R * 0.3, faceCy - R * 0.28);
 
   // Smile
   rc.beginPath();
-  rc.arc(cx, faceCy + R * 0.08, R * 0.42, 0.25, Math.PI - 0.25);
+  rc.arc(cx, faceCy + R * 0.22, R * 0.42, 0.25, Math.PI - 0.25);
   rc.strokeStyle = color; rc.lineWidth = isWinner ? 2.5 : 1.5; rc.lineCap = 'round';
   rc.stroke();
 
@@ -480,7 +480,7 @@ async function exportTikTok() {
     const chartW = RW - pad * 2;
     const chartH = Math.round(chartW * 0.6);
     const totalContentH = titleH + 8 + chartH + 16 + (statsH - 72);
-    const offsetY = Math.max(0, Math.round((RH - totalContentH) / 2 - 40));
+    const offsetY = Math.max(0, Math.round((RH - totalContentH) / 4));
     const chartY = offsetY + titleH + 8;
 
     rc.textAlign = 'center';
