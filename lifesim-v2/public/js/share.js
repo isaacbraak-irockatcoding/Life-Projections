@@ -512,14 +512,14 @@ async function exportTikTok() {
       const clr       = live < 0 ? '#ff6b6b' : st.color;
       const currentAge = pathIdx;  // path index equals age
 
-      rc.textAlign = 'right';
+      rc.textAlign = 'center';
       rc.fillStyle = clr;
       rc.font      = `bold ${nwFontSz}px monospace`;
-      rc.fillText(_fmtLive(live), RW - pad, rowTop + nwFontSz * 0.72);
+      rc.fillText(_fmtLive(live), RW / 2, rowTop + nwFontSz * 0.72);
 
       rc.fillStyle = '#9aa3c2';
       rc.font      = `${nameFontSz}px 'Outfit', sans-serif`;
-      rc.fillText(`Age ${currentAge} · ${st.name}`, RW - pad, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
+      rc.fillText(`Age ${currentAge} · ${st.name}`, RW / 2, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
     });
 
     rc.textAlign = 'center';
