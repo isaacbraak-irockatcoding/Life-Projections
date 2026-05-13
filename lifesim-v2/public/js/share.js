@@ -474,16 +474,16 @@ async function exportTikTok() {
     rc.textAlign = 'center';
     rc.fillStyle = scenarioStats[0].color;
     rc.font = "bold 38px 'Outfit', sans-serif";
-    rc.fillText('My Wealth Projection', RW / 2, 100);
+    rc.fillText('My Wealth Projection', RW / 2, 130);
     rc.fillStyle = '#7a83a8';
     rc.font = "24px 'Outfit', sans-serif";
     rc.fillText(
       scenarios.length > 1 ? `${scenarios.length} Scenarios Compared` : scenario.name,
-      RW / 2, 144
+      RW / 2, 174
     );
 
     const pad    = 24;
-    const titleH = 170;
+    const titleH = 200;
     const rowH   = scenarios.length > 1 ? 118 : 140;
     const statsH = scenarios.length * rowH + 72;
     const availH = RH - titleH - statsH;
@@ -512,14 +512,14 @@ async function exportTikTok() {
       const clr       = live < 0 ? '#ff6b6b' : st.color;
       const currentAge = pathIdx;  // path index equals age
 
-      rc.textAlign = 'left';
+      rc.textAlign = 'right';
       rc.fillStyle = clr;
       rc.font      = `bold ${nwFontSz}px monospace`;
-      rc.fillText(_fmtLive(live), pad, rowTop + nwFontSz * 0.72);
+      rc.fillText(_fmtLive(live), RW - pad, rowTop + nwFontSz * 0.72);
 
       rc.fillStyle = '#9aa3c2';
       rc.font      = `${nameFontSz}px 'Outfit', sans-serif`;
-      rc.fillText(`Age ${currentAge} · ${st.name}`, pad, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
+      rc.fillText(`Age ${currentAge} · ${st.name}`, RW - pad, rowTop + nwFontSz * 0.72 + nameFontSz + 6);
     });
 
     rc.textAlign = 'center';
