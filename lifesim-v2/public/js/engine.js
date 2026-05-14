@@ -481,11 +481,17 @@ function calculatePath(scenario) {
       const totalAssetContribsNow = assetPools.reduce((s, a) => s + a.contrib, 0);
       const netCashToPool = afterTax + ev.spouseIncome - debtPayments - ev.oneTime - ev.annual - totalAssetContribsNow - livingExpenses;
 
-      // Auto-invest pool: compound then receive invest_pct% of positive free cash
-      investPool  = investPool * (1 + investRate);
-      investAlloc = Math.max(0, netCashToPool) * investPct;
+      // Auto-invest pool: compound, then pay down any savings deficit first, then invest remainder
+      investPool = investPool * (1 + investRate);
+      let freeCash = netCashToPool;
+      if (savingsPool < 0 && freeCash > 0) {
+        const payoff = Math.min(-savingsPool, freeCash);
+        savingsPool += payoff;
+        freeCash    -= payoff;
+      }
+      investAlloc = Math.max(0, freeCash) * investPct;
       investPool += investAlloc;
-      savingsPool = savingsPool + netCashToPool - investAlloc;
+      savingsPool += freeCash - investAlloc;
     } else {
       // Retirement: assets compound at their return rates.
       // Actual living expenses + events + debts are deducted from the savings pool each year.

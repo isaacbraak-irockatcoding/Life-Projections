@@ -74,7 +74,8 @@ function applyEventTypeDefaults(typeId) {
   if (costEl   && !costEl.value)   costEl.value   = t.defaultCost   !== 0 ? Math.abs(t.defaultCost)   : '';
   if (annualEl && !annualEl.value) annualEl.value = t.defaultAnnual !== 0 ? Math.abs(t.defaultAnnual) : '';
   if (yearsEl  && !yearsEl.value)  yearsEl.value  = t.defaultYears;
-  if (emojiEl  && !emojiEl.value)  emojiEl.value  = t.emoji;
+  const knownEmojis = EVENT_TYPES.map(x => x.emoji);
+  if (emojiEl && (!emojiEl.value || knownEmojis.includes(emojiEl.value))) emojiEl.value = t.emoji;
 
   const nameEl = document.getElementById('ev-name');
   if (nameEl) {
