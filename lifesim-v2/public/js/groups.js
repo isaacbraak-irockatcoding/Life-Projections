@@ -155,7 +155,9 @@ async function _renderGroupView(group) {
           <span style="font-size:20px;">${member.avatar}</span>
           <div style="flex:1;">
             <div class="friend-name">${escapeHtml(member.username)}</div>
-            ${isSelf ? `<div class="micro">You</div>` : ''}
+            <div style="font-size:11px;color:var(--muted2);min-height:14px;">
+              <span id="group-occ-${member.user_id}"></span>${isSelf ? `<span class="micro"> · You</span>` : ''}
+            </div>
           </div>
           ${isOwner && !isSelf ? `
             <button class="event-del" onclick="removeGroupMemberConfirm(${group.id},${member.user_id})" title="Remove member">✕</button>` : ''}
@@ -210,6 +212,20 @@ async function _renderMemberChart(canvasId, shareToken) {
     label.style.cssText = 'font-size:11px;color:var(--muted2);text-align:right;margin-top:4px;';
     label.textContent = `Projected: ${fmtM(finalWl)}`;
     canvas.parentNode.appendChild(label);
+
+    // Occupation label on the card
+    const userId = canvasId.replace('group-chart-', '');
+    const primaryJobId = scenario.careers && scenario.careers.length > 0
+      ? scenario.careers.slice().sort((a, b) => a.start_age - b.start_age)[0].job_id
+      : scenario.job_id;
+    const jobName = (JOBS.find(j => j.id === primaryJobId) || {}).name || primaryJobId || '';
+    const occEl = document.getElementById(`group-occ-${userId}`);
+    if (occEl) occEl.textContent = jobName;
+
+    // Click chart to open synopsis modal
+    canvas.style.cursor = 'pointer';
+    canvas.title = 'Click to view details';
+    canvas.onclick = () => _openGroupScenarioModal(scenario, result, finalWl);
   } catch {
     if (canvas) {
       canvas.style.display = 'none';
@@ -276,4 +292,78 @@ async function removeGroupMemberConfirm(groupId, userId) {
 function _destroyGroupCharts() {
   Object.values(_groupCharts).forEach(c => { try { c.destroy(); } catch {} });
   _groupCharts = {};
+}
+
+function _openGroupScenarioModal(scenario, result, finalWl) {
+  const color = scenario.color || '#00d4aa';
+
+  const sortedCareers = (scenario.careers || []).slice().sort((a, b) => a.start_age - b.start_age);
+  let careerHtml;
+  if (sortedCareers.length > 0) {
+    careerHtml = sortedCareers.map(c => {
+      const job = JOBS.find(j => j.id === c.job_id) || { name: c.label || c.job_id };
+      const range = c.end_age ? `${c.start_age}–${c.end_age}` : `${c.start_age}+`;
+      return `<span style="display:inline-block;background:var(--card);border-radius:6px;padding:3px 8px;margin:2px;font-size:12px;">${escapeHtml(job.name)} <span style="color:var(--muted2);">age ${range}</span></span>`;
+    }).join('');
+  } else {
+    const job = JOBS.find(j => j.id === scenario.job_id) || { name: scenario.job_id || 'Unknown' };
+    careerHtml = `<span style="display:inline-block;background:var(--card);border-radius:6px;padding:3px 8px;font-size:12px;">${escapeHtml(job.name)}</span>`;
+  }
+
+  const events = (scenario.events || []).slice().sort((a, b) => a.at_age - b.at_age);
+  const eventsHtml = events.length
+    ? events.map(e => `<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--border,#2a2e42);">${e.emoji || '📌'} <b>Age ${e.at_age}</b> — ${escapeHtml(e.name)}</div>`).join('')
+    : '';
+
+  const schools = (scenario.schools || []).slice().sort((a, b) => a.start_age - b.start_age);
+  const schoolsHtml = schools.length
+    ? schools.map(s => `<div style="font-size:12px;padding:4px 0;">${escapeHtml(s.name || s.type)} — ${s.years} yr starting age ${s.start_age}</div>`).join('')
+    : '';
+
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  modal.innerHTML = `
+    <div style="background:var(--surf,#12152a);border-radius:16px;padding:24px;max-width:420px;width:100%;max-height:80vh;overflow-y:auto;position:relative;">
+      <button onclick="this.closest('div').parentElement.remove()" style="position:absolute;top:14px;right:14px;background:none;border:none;color:var(--muted2);font-size:18px;cursor:pointer;line-height:1;">✕</button>
+
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="font-size:26px;">${scenario.owner?.avatar || '🦊'}</span>
+        <div>
+          <div style="font-weight:700;font-size:15px;">${escapeHtml(scenario.owner?.username || '')}</div>
+          <div style="font-size:11px;color:var(--muted2);">Shared scenario</div>
+        </div>
+      </div>
+
+      <div style="background:${color}18;border:1px solid ${color}50;border-radius:8px;padding:8px 12px;margin-bottom:16px;font-size:13px;font-weight:600;color:${color};">
+        ${escapeHtml(scenario.name || 'Scenario')}
+      </div>
+
+      <div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Career</div>
+      <div style="margin-bottom:16px;">${careerHtml}</div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:${events.length || schools.length ? 16 : 0}px;">
+        <div style="background:var(--card,#1a1e32);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:17px;font-weight:700;color:${color};">${fmtM(finalWl)}</div>
+          <div style="font-size:10px;color:var(--muted2);">Projected Wealth</div>
+        </div>
+        <div style="background:var(--card,#1a1e32);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:17px;font-weight:700;">Age ${scenario.retire_age}</div>
+          <div style="font-size:10px;color:var(--muted2);">Retirement</div>
+        </div>
+        <div style="background:var(--card,#1a1e32);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:17px;font-weight:700;">${scenario.save_pct}%</div>
+          <div style="font-size:10px;color:var(--muted2);">Save Rate</div>
+        </div>
+        <div style="background:var(--card,#1a1e32);border-radius:8px;padding:10px;text-align:center;">
+          <div style="font-size:17px;font-weight:700;">${scenario.return_rate}%</div>
+          <div style="font-size:10px;color:var(--muted2);">Return Rate</div>
+        </div>
+      </div>
+
+      ${eventsHtml ? `<div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Life Events</div><div style="margin-bottom:16px;">${eventsHtml}</div>` : ''}
+      ${schoolsHtml ? `<div style="font-size:10px;color:var(--muted2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Education</div><div>${schoolsHtml}</div>` : ''}
+    </div>
+  `;
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  document.body.appendChild(modal);
 }

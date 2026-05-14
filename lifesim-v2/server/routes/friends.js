@@ -9,7 +9,12 @@ router.use(requireAuth);
 router.get('/', async (req, res, next) => {
   try {
     const friends = await db.all(`
-      SELECT u.id, u.username, u.avatar, MIN(f.created_at) AS friends_since
+      SELECT u.id, u.username, u.avatar, MIN(f.created_at) AS friends_since,
+             (SELECT sl.token
+              FROM share_links sl
+              JOIN scenarios s ON s.id = sl.scenario_id
+              WHERE s.user_id = u.id
+              ORDER BY s.updated_at DESC LIMIT 1) AS share_token
       FROM friendships f
       JOIN users u ON u.id = CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END
       WHERE (f.requester_id = ? OR f.addressee_id = ?) AND f.status = 'accepted'
