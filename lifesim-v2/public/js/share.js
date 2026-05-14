@@ -486,7 +486,7 @@ async function exportTikTok() {
     rc.textAlign = 'center';
     rc.fillStyle = scenarioStats[0].color;
     rc.font = "bold 38px 'Outfit', sans-serif";
-    rc.fillText('My Wealth Projection', RW / 2, offsetY + 130);
+    rc.fillText('LifeSimFinance.com', RW / 2, offsetY + 130);
     rc.fillStyle = '#7a83a8';
     rc.font = "24px 'Outfit', sans-serif";
     rc.fillText(
@@ -682,7 +682,7 @@ function _showVideoPlayer(blob, fname) {
           const mimeType = blob.type.split(';')[0]; // strip codec params iOS may reject
           const f = new File([blob], fname, { type: mimeType });
           try {
-            await navigator.share({ files: [f], title: 'My Wealth Projection' });
+            await navigator.share({ files: [f], title: 'LifeSimFinance.com' });
           } catch (e) {
             if (e.name !== 'AbortError') {
               showToast('Could not save — try long-pressing the video to save manually.', true);
@@ -706,7 +706,7 @@ function _showVideoPlayer(blob, fname) {
         shareBtn.textContent   = 'Save to Phone';
         shareBtn.onclick = async () => {
           const f = new File([blob], fname, { type: blob.type });
-          try { await navigator.share({ files: [f], title: 'My Wealth Projection' }); }
+          try { await navigator.share({ files: [f], title: 'LifeSimFinance.com' }); }
           catch (e) { if (e.name !== 'AbortError') container.append(dlBtn); }
         };
         container.append(shareBtn);
@@ -783,7 +783,7 @@ function _showClipModal(url, blob, fname) {
       const mimeType = blob.type.split(';')[0]; // strip codec params iOS may reject
       const f = new File([blob], fname || 'lifesim-projection.mp4', { type: mimeType });
       try {
-        await navigator.share({ files: [f], title: 'My Wealth Projection' });
+        await navigator.share({ files: [f], title: 'LifeSimFinance.com' });
       } catch (e) {
         if (e.name !== 'AbortError') {
           showToast('Could not save — try long-pressing the video to save manually.', true);
