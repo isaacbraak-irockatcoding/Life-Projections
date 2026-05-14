@@ -134,8 +134,14 @@ async function _renderGroupView(group) {
     </div>
 
     <div class="card fade-up" style="margin-bottom:14px;">
-      <button class="btn btn-primary" onclick="publishMyScenario(${group.id})">📤 Publish My Scenario to Group</button>
-      <p style="font-size:11px;color:var(--muted2);margin:8px 0 0;">Shares your currently active scenario with all group members.</p>
+      <h3 style="margin-bottom:10px;">Share a Scenario</h3>
+      <div class="field">
+        <select id="publish-scenario-select-${group.id}"
+          style="width:100%;background:var(--input,#1a1e32);color:var(--text);border:1px solid var(--border,#2a2e42);border-radius:6px;padding:8px 10px;font-size:13px;">
+          <option value="">Loading scenarios…</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" style="margin-top:8px;" onclick="publishMyScenario(${group.id})">📤 Publish to Group</button>
     </div>
 
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;">
@@ -164,6 +170,7 @@ async function _renderGroupView(group) {
   html += `</div>`;
 
   el.innerHTML = html;
+  _populatePublishSelect(group.id);
 
   // Draw charts after DOM update
   for (const member of group.members) {
@@ -216,9 +223,32 @@ async function _renderMemberChart(canvasId, shareToken) {
 
 // ── Actions ─────────────────────────────────────────────────────────────────
 
+async function _populatePublishSelect(groupId) {
+  const sel = document.getElementById(`publish-scenario-select-${groupId}`);
+  if (!sel) return;
+  try {
+    const list = await api.get('/api/scenarios');
+    if (!list.length) {
+      sel.innerHTML = '<option value="">No saved scenarios</option>';
+      return;
+    }
+    const activeId = State.getActiveId();
+    sel.innerHTML = list
+      .map(s => `<option value="${s.id}" ${s.id === activeId ? 'selected' : ''}>${escapeHtml(s.name)}</option>`)
+      .join('');
+  } catch {
+    sel.innerHTML = '<option value="">Could not load scenarios</option>';
+  }
+}
+
 async function publishMyScenario(groupId) {
-  const scenarioId = State.getActiveId();
-  if (!scenarioId) { showToast('Load a scenario first', true); return; }
+  const sel = document.getElementById(`publish-scenario-select-${groupId}`);
+  const scenarioId = sel ? parseInt(sel.value) : State.getActiveId();
+  if (!scenarioId) { showToast('Select a scenario first', true); return; }
+  if (State.isDirty() && State.getActiveId() === scenarioId) {
+    showToast('Save your changes first before sharing', true);
+    return;
+  }
   try {
     await api.publishToGroup(groupId, scenarioId);
     showToast('Scenario published to group!');

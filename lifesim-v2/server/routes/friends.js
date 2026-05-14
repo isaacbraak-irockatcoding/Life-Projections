@@ -9,10 +9,11 @@ router.use(requireAuth);
 router.get('/', async (req, res, next) => {
   try {
     const friends = await db.all(`
-      SELECT u.id, u.username, u.avatar, f.created_at AS friends_since
+      SELECT u.id, u.username, u.avatar, MIN(f.created_at) AS friends_since
       FROM friendships f
       JOIN users u ON u.id = CASE WHEN f.requester_id = ? THEN f.addressee_id ELSE f.requester_id END
       WHERE (f.requester_id = ? OR f.addressee_id = ?) AND f.status = 'accepted'
+      GROUP BY u.id, u.username, u.avatar
     `, [req.userId, req.userId, req.userId]);
     res.json(friends);
   } catch (err) { next(err); }
@@ -67,15 +68,7 @@ router.post('/accept/:requesterId', async (req, res, next) => {
     `, [requesterId, req.userId]);
     if (!pending) return res.status(404).json({ error: 'Pending request not found' });
 
-    await db.transaction(async (tdb) => {
-      // Update the original request to accepted
-      await tdb.run("UPDATE friendships SET status = 'accepted' WHERE id = ?", [pending.id]);
-      // Insert the reverse row so both can query from their side
-      await tdb.run(
-        "INSERT INTO friendships (requester_id, addressee_id, status) VALUES (?, ?, 'accepted') ON CONFLICT DO NOTHING",
-        [req.userId, requesterId]
-      );
-    });
+    await db.run("UPDATE friendships SET status = 'accepted' WHERE id = ?", [pending.id]);
     res.json({ message: 'Friend request accepted' });
   } catch (err) { next(err); }
 });
