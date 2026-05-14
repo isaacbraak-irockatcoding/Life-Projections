@@ -12,9 +12,12 @@ async function ownScenario(scenarioId, userId) {
 async function fullSnapshot(scenarioId) {
   const s = await db.get('SELECT * FROM scenarios WHERE id = ?', [scenarioId]);
   if (!s) return null;
-  s.assets = await db.all('SELECT * FROM assets WHERE scenario_id = ? ORDER BY id', [scenarioId]);
-  s.debts  = await db.all('SELECT * FROM debts  WHERE scenario_id = ? ORDER BY id', [scenarioId]);
-  s.events = await db.all('SELECT * FROM events WHERE scenario_id = ? ORDER BY at_age', [scenarioId]);
+  s.assets     = await db.all('SELECT * FROM assets     WHERE scenario_id = ? ORDER BY id',        [scenarioId]);
+  s.debts      = await db.all('SELECT * FROM debts      WHERE scenario_id = ? ORDER BY id',        [scenarioId]);
+  s.events     = await db.all('SELECT * FROM events     WHERE scenario_id = ? ORDER BY at_age',    [scenarioId]);
+  s.careers    = await db.all('SELECT * FROM careers    WHERE scenario_id = ? ORDER BY start_age', [scenarioId]);
+  s.schools    = await db.all('SELECT * FROM schools    WHERE scenario_id = ? ORDER BY start_age', [scenarioId]);
+  s.lifestyles = await db.all('SELECT * FROM lifestyles WHERE scenario_id = ? ORDER BY start_age', [scenarioId]);
   // Include owner info but not user_id
   const owner = await db.get('SELECT username, avatar FROM users WHERE id = ?', [s.user_id]);
   s.owner = owner;

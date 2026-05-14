@@ -44,12 +44,18 @@ router.post('/request', async (req, res, next) => {
 
     // Check if already friends or request exists
     const existing = await db.get(`
-      SELECT status FROM friendships
+      SELECT status, requester_id FROM friendships
       WHERE (requester_id = ? AND addressee_id = ?) OR (requester_id = ? AND addressee_id = ?)
     `, [req.userId, target.id, target.id, req.userId]);
 
     if (existing) {
       if (existing.status === 'accepted') return res.status(409).json({ error: 'Already friends' });
+      // If the other user already sent us a pending request, accept it automatically
+      if (existing.status === 'pending' && existing.requester_id === target.id) {
+        await db.run("UPDATE friendships SET status = 'accepted' WHERE requester_id = ? AND addressee_id = ?",
+          [target.id, req.userId]);
+        return res.json({ message: 'Friend request accepted' });
+      }
       return res.status(409).json({ error: 'Friend request already exists' });
     }
 
@@ -69,6 +75,11 @@ router.post('/accept/:requesterId', async (req, res, next) => {
     if (!pending) return res.status(404).json({ error: 'Pending request not found' });
 
     await db.run("UPDATE friendships SET status = 'accepted' WHERE id = ?", [pending.id]);
+    // Clean up any reverse pending request that may have been created simultaneously
+    await db.run(
+      "DELETE FROM friendships WHERE requester_id = ? AND addressee_id = ? AND status = 'pending'",
+      [req.userId, requesterId]
+    );
     res.json({ message: 'Friend request accepted' });
   } catch (err) { next(err); }
 });
