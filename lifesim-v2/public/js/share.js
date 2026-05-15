@@ -47,7 +47,8 @@ function renderShareTab() {
         <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--muted2);margin-top:2px;"><span>5s</span><span>60s</span></div>
       </div>
       <div class="btn-row">
-        <button class="btn btn-ghost btn-sm" id="tiktok-btn" onclick="exportTikTok()">🎬 Record Clip</button>
+        <button class="btn btn-ghost btn-sm" id="tiktok-btn"      onclick="exportTikTok()">🎬 Record Clip</button>
+        <button class="btn btn-ghost btn-sm" id="calc-record-btn" onclick="exportCalcTikTok()">🧮 Calculator Clip</button>
       </div>
       <p class="micro" style="text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted2);margin-top:8px;">Records the animated chart in 9:16 vertical format — ready to post.</p>
       <div id="clip-preview"></div>
@@ -284,6 +285,113 @@ function _drawRecordingFigure(rc, cx, cy, now, color, isWinner) {
   rc.arc(cx, faceCy + R * 0.22, R * 0.42, 0.25, Math.PI - 0.25);
   rc.strokeStyle = color; rc.lineWidth = isWinner ? 2.5 : 1.5; rc.lineCap = 'round';
   rc.stroke();
+
+  rc.restore();
+}
+
+function _drawRecordingCalcChart(rc, rows, principal, x, y, w, h, progress) {
+  const n = rows.length;
+  if (!n) return;
+
+  const maxVal = rows[n - 1].balance;
+
+  // Nice y-axis ticks
+  const rawStep  = maxVal / 5;
+  const mag      = Math.pow(10, Math.floor(Math.log10(rawStep || 1)));
+  const norm     = rawStep / mag;
+  const niceStep = norm < 1.5 ? 1 : norm < 3.5 ? 2.5 : norm < 7.5 ? 5 : 10;
+  const interval = niceStep * mag;
+  const tickMax  = Math.ceil(maxVal / interval) * interval;
+  const ticks    = [];
+  for (let v = 0; v <= tickMax + interval * 0.01; v += interval) ticks.push(Math.round(v));
+
+  const lm = 108, bm = 80, tm = 32, rm = 14;
+  const cx = x + lm, cy = y + tm, cw = w - lm - rm, ch = h - bm - tm;
+
+  const barTotalW = cw / n;
+  const barW      = Math.max(2, barTotalW * 0.78);
+  const barOffX   = (barTotalW - barW) / 2;
+  const toH       = (v) => (v / tickMax) * ch;
+
+  rc.save();
+
+  // Y-axis gridlines + labels
+  for (const val of ticks) {
+    const gy     = cy + ch - toH(val);
+    const isZero = val === 0;
+    if (gy < cy - 4 || gy > cy + ch + 4) continue;
+    rc.strokeStyle = isZero ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.07)';
+    rc.lineWidth   = isZero ? 1.5 : 1;
+    rc.setLineDash(isZero ? [5, 4] : [3, 5]);
+    rc.beginPath(); rc.moveTo(cx, gy); rc.lineTo(cx + cw, gy); rc.stroke();
+    rc.setLineDash([]);
+    if (gy < cy + ch - 20) {
+      rc.fillStyle = isZero ? '#d0d8f0' : '#9aa3c2';
+      rc.font      = `${isZero ? 'bold ' : ''}22px 'Outfit', sans-serif`;
+      rc.textAlign = 'right';
+      rc.fillText(fmtM(val), cx - 12, gy + 7);
+    }
+  }
+
+  // Axis titles
+  rc.fillStyle = '#9aa3c2';
+  rc.font      = "18px 'Outfit', sans-serif";
+  rc.textAlign = 'right';
+  rc.fillText('Balance', cx - 12, cy - 10);
+
+  // X-axis labels
+  const labelEvery = Math.max(1, Math.ceil(n / 6));
+  rc.fillStyle  = '#9aa3c2';
+  rc.font       = "18px 'Outfit', sans-serif";
+  rc.textAlign  = 'center';
+  rows.forEach((r, i) => {
+    if (i % labelEvery === 0 || i === n - 1) {
+      const bx = cx + i * barTotalW + barTotalW / 2;
+      rc.fillText(`Yr ${r.year}`, bx, cy + ch + 28);
+    }
+  });
+
+  // Draw stacked bars for `shown` bars
+  const shown = Math.max(1, Math.ceil(n * progress));
+  for (let i = 0; i < shown; i++) {
+    const r    = rows[i];
+    const bx   = cx + i * barTotalW + barOffX;
+    let stackY = cy + ch;
+
+    const initH    = toH(principal);
+    const contribH = toH(Math.max(0, r.contrib));
+    const interestH = toH(Math.max(0, r.interest));
+
+    rc.fillStyle = 'rgba(55,65,110,0.9)';
+    rc.fillRect(bx, stackY - initH, barW, initH);
+    stackY -= initH;
+
+    rc.fillStyle = 'rgba(240,160,64,0.9)';
+    rc.fillRect(bx, stackY - contribH, barW, contribH);
+    stackY -= contribH;
+
+    rc.fillStyle = 'rgba(0,212,170,0.9)';
+    rc.fillRect(bx, stackY - interestH, barW, interestH);
+  }
+
+  // Legend
+  const legendY = cy + ch + 52;
+  const legendItems = [
+    { color: 'rgba(55,65,110,0.9)',   label: 'Initial' },
+    { color: 'rgba(240,160,64,0.9)',  label: 'Contributions' },
+    { color: 'rgba(0,212,170,0.9)',   label: 'Interest' },
+  ];
+  const legendTotalW = 390;
+  const legendX      = cx + cw / 2 - legendTotalW / 2;
+  rc.font      = "18px 'Outfit', sans-serif";
+  rc.textAlign = 'left';
+  legendItems.forEach((item, i) => {
+    const lx = legendX + i * 130;
+    rc.fillStyle = item.color;
+    rc.fillRect(lx, legendY - 14, 16, 16);
+    rc.fillStyle = '#9aa3c2';
+    rc.fillText(item.label, lx + 22, legendY);
+  });
 
   rc.restore();
 }
@@ -630,6 +738,210 @@ async function exportTikTok() {
       }
       if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
       _drawContents(elapsed);
+      try {
+        const vf = new VideoFrame(recCanvas, { timestamp: Math.round(elapsed * 1000) });
+        encoder.encode(vf, { keyFrame: elapsed % 2000 < 34 });
+        vf.close();
+      } catch { failed = true; }
+      requestAnimationFrame(drawFrame);
+    }
+    requestAnimationFrame(drawFrame);
+  }
+}
+
+async function exportCalcTikTok() {
+  if (typeof _calcState === 'undefined' || typeof _calcCompound === 'undefined') {
+    showToast('Open the Calculator tab first', true);
+    return;
+  }
+
+  const btn = document.getElementById('calc-record-btn');
+  const { principal, monthly, rate, freq, years } = _calcState;
+  const rows = _calcCompound(principal, monthly, rate, freq, years);
+  if (!rows.length) return;
+
+  const RW = 720, RH = 1280;
+  const recCanvas = document.createElement('canvas');
+  recCanvas.width  = RW;
+  recCanvas.height = RH;
+  recCanvas.style.cssText = 'position:fixed;left:-9999px;top:0;pointer-events:none;';
+  document.body.appendChild(recCanvas);
+  const rc = recCanvas.getContext('2d');
+
+  const HOLD_MS       = 3_000;
+  const CHART_ANIM_MS = Math.max(2_000, _clipDurationSecs * 1_000 - HOLD_MS);
+  const DURATION      = CHART_ANIM_MS + HOLD_MS;
+  const filename      = 'lifesim-compound-calculator';
+
+  if (btn) { btn.textContent = '⏺ Recording… 0%'; btn.disabled = true; }
+
+  function _fmtLive(v) {
+    const av = Math.abs(v);
+    if (av >= 1_000_000) return (v < 0 ? '-' : '') + '$' + (av / 1_000_000).toFixed(3) + 'M';
+    if (av >= 1_000)     return (v < 0 ? '-' : '') + '$' + (av / 1_000).toFixed(1) + 'K';
+    return (v < 0 ? '-$' : '$') + Math.round(av).toLocaleString();
+  }
+
+  function _drawCalcContents(elapsed) {
+    rc.fillStyle = '#07080f';
+    rc.fillRect(0, 0, RW, RH);
+
+    const pad      = 24;
+    const titleH   = 210;
+    const progress = Math.min(1, elapsed / CHART_ANIM_MS);
+    const chartW   = RW - pad * 2;
+    const chartH   = Math.round(chartW * 0.72);
+    const tallyH   = 200;
+    const totalH   = titleH + chartH + tallyH;
+    const offsetY  = Math.max(0, Math.round((RH - totalH) / 4));
+    const chartY   = offsetY + titleH;
+
+    // Title
+    rc.textAlign = 'center';
+    rc.fillStyle = 'rgba(0,212,170,1)';
+    rc.font      = "bold 42px 'Outfit', sans-serif";
+    rc.fillText('Compound Interest', RW / 2, offsetY + 120);
+    rc.fillStyle = '#7a83a8';
+    rc.font      = "26px 'Outfit', sans-serif";
+    rc.fillText(`${rate}% Annual · ${years} Year${years !== 1 ? 's' : ''}`, RW / 2, offsetY + 170);
+
+    _drawRecordingCalcChart(rc, rows, principal, pad, chartY, chartW, chartH, progress);
+
+    // Running tally
+    const shown      = Math.max(1, Math.ceil(rows.length * progress));
+    const currentRow = rows[shown - 1];
+    const panelTop   = chartY + chartH + 20;
+
+    rc.textAlign = 'center';
+    rc.fillStyle = 'rgba(0,212,170,1)';
+    rc.font      = "bold 68px monospace";
+    rc.fillText(_fmtLive(currentRow.balance), RW / 2, panelTop + 68);
+
+    rc.fillStyle = '#9aa3c2';
+    rc.font      = "26px 'Outfit', sans-serif";
+    rc.fillText(`Year ${currentRow.year}`, RW / 2, panelTop + 108);
+
+    // Sub-breakdown
+    const dotItems = [
+      { color: 'rgba(55,65,110,0.9)',   val: principal,                         label: 'Initial' },
+      { color: 'rgba(240,160,64,0.9)',  val: Math.max(0, currentRow.contrib),   label: 'Contrib' },
+      { color: 'rgba(0,212,170,0.9)',   val: Math.max(0, currentRow.interest),  label: 'Interest' },
+    ];
+    const blockW = 180;
+    const startX = RW / 2 - blockW;
+    rc.font = "19px 'Outfit', sans-serif";
+    dotItems.forEach((item, i) => {
+      const dx = startX + i * blockW;
+      rc.fillStyle = item.color;
+      rc.beginPath(); rc.arc(dx + 8, panelTop + 142, 7, 0, Math.PI * 2); rc.fill();
+      rc.fillStyle = '#7a83a8';
+      rc.textAlign = 'left';
+      rc.fillText(`${item.label}: ${_fmtLive(item.val)}`, dx + 20, panelTop + 148);
+    });
+
+    // Footer
+    rc.textAlign = 'center';
+    rc.fillStyle = 'rgba(0,212,170,0.7)';
+    rc.font      = "bold 20px 'Outfit', sans-serif";
+    rc.fillText('lifesimfinance.com', RW / 2, RH - 22);
+  }
+
+  async function _finishExport(blob, ext) {
+    recCanvas.remove();
+    if (blob.size < 1000) {
+      if (btn) { btn.textContent = '🧮 Calculator Clip'; btn.disabled = false; }
+      showToast('Recording was empty — try again', true);
+      return;
+    }
+    const token = api.getToken();
+    if (token) {
+      if (btn) btn.textContent = '⬆ Uploading clip…';
+      try {
+        const res = await fetch('/api/clips', {
+          method: 'POST',
+          headers: { 'Content-Type': blob.type, 'Authorization': `Bearer ${token}` },
+          body: blob,
+        });
+        if (res.ok) {
+          const { url } = await res.json();
+          if (btn) { btn.textContent = '🧮 Calculator Clip'; btn.disabled = false; }
+          _showClipModal(url, blob, filename + ext);
+          return;
+        }
+      } catch {}
+    }
+    if (btn) { btn.textContent = '🧮 Calculator Clip'; btn.disabled = false; }
+    _showVideoPlayer(blob, filename + ext);
+  }
+
+  const _mrMime =
+    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/mp4')             ? 'video/mp4'            :
+    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' :
+    typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported('video/webm')            ? 'video/webm'           :
+    null;
+
+  if (_mrMime) {
+    _runMediaRecorder();
+  } else if (typeof VideoEncoder !== 'undefined' && typeof Mp4Muxer !== 'undefined') {
+    _runWebCodecs();
+  } else {
+    recCanvas.remove();
+    if (btn) { btn.textContent = '🧮 Calculator Clip'; btn.disabled = false; }
+    showToast("Video export isn't supported on this browser.", true);
+  }
+
+  function _runMediaRecorder() {
+    const mimeType = _mrMime;
+    const ext      = mimeType.startsWith('video/mp4') ? '.mp4' : '.webm';
+    const stream   = recCanvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 6_000_000 });
+    const chunks   = [];
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => _finishExport(new Blob(chunks, { type: mimeType }), ext);
+    recorder.start(200);
+
+    const recStart = Date.now();
+    function drawFrameWebM() {
+      const elapsed = Date.now() - recStart;
+      if (elapsed > DURATION) { recorder.stop(); return; }
+      if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
+      _drawCalcContents(elapsed);
+      requestAnimationFrame(drawFrameWebM);
+    }
+    requestAnimationFrame(drawFrameWebM);
+  }
+
+  function _runWebCodecs() {
+    const target  = new Mp4Muxer.ArrayBufferTarget();
+    const muxer   = new Mp4Muxer.Muxer({ target, video: { codec: 'avc', width: RW, height: RH }, fastStart: 'in-memory' });
+    let failed    = false;
+    const encoder = new VideoEncoder({
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+      error:  e => { console.error('VideoEncoder:', e); failed = true; },
+    });
+    encoder.configure({ codec: 'avc1.4d001f', width: RW, height: RH, bitrate: 6_000_000, framerate: 30 });
+
+    const recStart = Date.now();
+    function drawFrame() {
+      const elapsed = Date.now() - recStart;
+      if (failed) {
+        recCanvas.remove();
+        if (btn) { btn.textContent = '🧮 Calculator Clip'; btn.disabled = false; }
+        showToast('Recording failed — try again', true);
+        return;
+      }
+      if (elapsed > DURATION) {
+        encoder.flush()
+          .then(() => { muxer.finalize(); _finishExport(new Blob([target.buffer], { type: 'video/mp4' }), '.mp4'); })
+          .catch(() => {
+            recCanvas.remove();
+            if (btn) { btn.textContent = '🧮 Calculator Clip'; btn.disabled = false; }
+            showToast('Recording failed — try again', true);
+          });
+        return;
+      }
+      if (btn) btn.textContent = `⏺ Recording… ${Math.min(100, Math.round((elapsed / DURATION) * 100))}%`;
+      _drawCalcContents(elapsed);
       try {
         const vf = new VideoFrame(recCanvas, { timestamp: Math.round(elapsed * 1000) });
         encoder.encode(vf, { keyFrame: elapsed % 2000 < 34 });
