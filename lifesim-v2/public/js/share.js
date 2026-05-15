@@ -333,12 +333,6 @@ function _drawRecordingCalcChart(rc, rows, principal, x, y, w, h, progress) {
     }
   }
 
-  // Axis titles
-  rc.fillStyle = '#9aa3c2';
-  rc.font      = "18px 'Outfit', sans-serif";
-  rc.textAlign = 'right';
-  rc.fillText('Balance', cx - 12, cy - 10);
-
   // X-axis labels
   const labelEvery = Math.max(1, Math.ceil(n / 6));
   rc.fillStyle  = '#9aa3c2';
@@ -381,12 +375,12 @@ function _drawRecordingCalcChart(rc, rows, principal, x, y, w, h, progress) {
     { color: 'rgba(240,160,64,0.9)',  label: 'Contributions' },
     { color: 'rgba(0,212,170,0.9)',   label: 'Interest' },
   ];
-  const legendTotalW = 390;
-  const legendX      = cx + cw / 2 - legendTotalW / 2;
+  const legendSpacing = 210;
+  const legendX       = (x + w / 2) - legendSpacing;
   rc.font      = "18px 'Outfit', sans-serif";
   rc.textAlign = 'left';
   legendItems.forEach((item, i) => {
-    const lx = legendX + i * 130;
+    const lx = legendX + i * legendSpacing;
     rc.fillStyle = item.color;
     rc.fillRect(lx, legendY - 14, 16, 16);
     rc.fillStyle = '#9aa3c2';
@@ -787,7 +781,7 @@ async function exportCalcTikTok() {
     rc.fillRect(0, 0, RW, RH);
 
     const pad      = 24;
-    const titleH   = 210;
+    const titleH   = 190;
     const progress = Math.min(1, elapsed / CHART_ANIM_MS);
     const chartW   = RW - pad * 2;
     const chartH   = Math.round(chartW * 0.72);
@@ -796,14 +790,23 @@ async function exportCalcTikTok() {
     const offsetY  = Math.max(0, Math.round((RH - totalH) / 4));
     const chartY   = offsetY + titleH;
 
+    // Watermark — top of frame
+    rc.textAlign = 'center';
+    rc.fillStyle = 'rgba(0,212,170,0.85)';
+    rc.font      = "bold 32px 'Outfit', sans-serif";
+    rc.fillText('lifesimfinance.com', RW / 2, 48);
+
     // Title
     rc.textAlign = 'center';
     rc.fillStyle = 'rgba(0,212,170,1)';
     rc.font      = "bold 42px 'Outfit', sans-serif";
-    rc.fillText('Compound Interest', RW / 2, offsetY + 120);
+    rc.fillText('Compound Interest', RW / 2, offsetY + 110);
     rc.fillStyle = '#7a83a8';
     rc.font      = "26px 'Outfit', sans-serif";
-    rc.fillText(`${rate}% Annual · ${years} Year${years !== 1 ? 's' : ''}`, RW / 2, offsetY + 170);
+    rc.fillText(`${rate}% Annual · ${years} Year${years !== 1 ? 's' : ''}`, RW / 2, offsetY + 155);
+    rc.font      = "22px 'Outfit', sans-serif";
+    rc.fillStyle = '#6a7398';
+    rc.fillText(`$${Math.round(monthly * 12).toLocaleString()} contributed per year`, RW / 2, offsetY + 185);
 
     _drawRecordingCalcChart(rc, rows, principal, pad, chartY, chartW, chartH, progress);
 
@@ -839,11 +842,6 @@ async function exportCalcTikTok() {
       rc.fillText(`${item.label}: ${_fmtLive(item.val)}`, dx + 20, panelTop + 148);
     });
 
-    // Footer
-    rc.textAlign = 'center';
-    rc.fillStyle = 'rgba(0,212,170,0.7)';
-    rc.font      = "bold 20px 'Outfit', sans-serif";
-    rc.fillText('lifesimfinance.com', RW / 2, RH - 22);
   }
 
   async function _finishExport(blob, ext) {
