@@ -29,8 +29,14 @@ function _applyOp(a, op, b) {
   if (op === '+') return a + b;
   if (op === '-') return a - b;
   if (op === '*') return a * b;
-  if (op === '÷') return b === 0 ? 0 : Math.trunc(a / b);
+  if (op === '÷') return b === 0 ? 0 : a / b;
   return a + b;
+}
+
+function _fmtVal(v) {
+  if (!Number.isFinite(v)) return '0';
+  if (Number.isInteger(v)) return String(v);
+  return v.toFixed(1);
 }
 
 function _lerp(a, b, t) { return Math.round(a + (b - a) * t); }
@@ -57,16 +63,30 @@ function _tileEmoji(value) {
 
 // ── Board generation ──────────────────────────────────────────────────────────
 function _generateBoard(rng) {
-  const grid = [];
-  for (let r = 0; r < 4; r++) {
-    grid[r] = [];
-    for (let c = 0; c < 4; c++) {
-      const value = Math.round(rng() * 18) - 9; // -9 to 9
-      const op = OPS[Math.floor(rng() * OPS.length)];
-      grid[r][c] = { value, op };
-    }
-  }
-  return grid;
+  const grid = Array.from({length: 4}, () =>
+    Array.from({length: 4}, () => ({ value: Math.round(rng() * 18) - 9 }))
+  );
+  const hops = Array.from({length: 4}, () =>
+    Array.from({length: 3}, () => OPS[Math.floor(rng() * OPS.length)])
+  );
+  const vops = Array.from({length: 3}, () =>
+    Array.from({length: 4}, () => OPS[Math.floor(rng() * OPS.length)])
+  );
+  _capDivisions(hops, vops, rng);
+  return { grid, hops, vops };
+}
+
+function _capDivisions(hops, vops, rng) {
+  const nonDiv = ['+', '-', '*'];
+  let divCount = 0;
+  for (let r = 0; r < hops.length; r++)
+    for (let c = 0; c < hops[r].length; c++)
+      if (hops[r][c] === '÷' && ++divCount > 2)
+        hops[r][c] = nonDiv[Math.floor(rng() * 3)];
+  for (let r = 0; r < vops.length; r++)
+    for (let c = 0; c < vops[r].length; c++)
+      if (vops[r][c] === '÷' && ++divCount > 2)
+        vops[r][c] = nonDiv[Math.floor(rng() * 3)];
 }
 
 // ── Movement helpers ──────────────────────────────────────────────────────────
@@ -96,6 +116,7 @@ function _loadSave() {
     if (!raw) return null;
     const data = JSON.parse(raw);
     if (data.date !== _todayStr()) return null;
+    if (!data.hops || !data.vops) return null;
     return data;
   } catch { return null; }
 }
@@ -105,6 +126,8 @@ function _writeSave(state) {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       date: _todayStr(),
       grid: state.grid,
+      hops: state.hops,
+      vops: state.vops,
       activePos: state.activePos,
       phase: state.phase,
       moves: state.moves,
@@ -115,7 +138,7 @@ function _writeSave(state) {
 
 // ── Game state ────────────────────────────────────────────────────────────────
 let _gs = null;
-// { grid, activePos: {r,c}|null, phase: 'select'|'play'|'over', moves, score }
+// { grid, hops, vops, activePos: {r,c}|null, phase: 'select'|'play'|'over', moves, score }
 
 function _initState() {
   const saved = _loadSave();
@@ -124,8 +147,8 @@ function _initState() {
     return;
   }
   const rng = _mulberry32(_dateSeed());
-  const grid = _generateBoard(rng);
-  _gs = { grid, activePos: null, phase: 'select', moves: 0, score: 0 };
+  const { grid, hops, vops } = _generateBoard(rng);
+  _gs = { grid, hops, vops, activePos: null, phase: 'select', moves: 0, score: 0 };
   _writeSave(_gs);
 }
 
@@ -156,10 +179,11 @@ function _moveActive(dir) {
 
   const active = _gs.grid[r][c];
   const target = _gs.grid[nr][nc];
-  const merged = {
-    value: _applyOp(active.value, target.op, target.value),
-    op: target.op,
-  };
+  const edgeOp = dir === 'right' ? _gs.hops[r][c]
+               : dir === 'left'  ? _gs.hops[r][c - 1]
+               : dir === 'down'  ? _gs.vops[r][c]
+               :                   _gs.vops[r - 1][c];
+  const merged = { value: _applyOp(active.value, edgeOp, target.value) };
 
   _gs.grid[r][c] = null;
   _gs.grid[nr][nc] = merged;
@@ -190,30 +214,62 @@ function _renderBoard() {
   if (!wrap || !_gs) return;
   wrap.innerHTML = '';
 
-  for (let r = 0; r < 4; r++) {
-    for (let c = 0; c < 4; c++) {
-      const tile = _gs.grid[r][c];
+  const activeR = _gs.activePos?.r;
+  const activeC = _gs.activePos?.c;
+
+  for (let row = 0; row < 7; row++) {
+    for (let col = 0; col < 7; col++) {
       const cell = document.createElement('div');
-      cell.className = 'game-tile';
+      const rowEven = row % 2 === 0;
+      const colEven = col % 2 === 0;
 
-      if (tile) {
-        const { bg, fg } = _tileColor(tile.value);
-        cell.style.background = bg;
-        cell.style.color = fg;
-
-        const isActive = _gs.activePos && _gs.activePos.r === r && _gs.activePos.c === c;
-        const hideOp   = isActive && _gs.phase !== 'select';
-
-        cell.innerHTML = hideOp
-          ? `<span class="tile-val">${tile.value}</span>`
-          : `<span class="tile-op">${tile.op}</span><span class="tile-val">${tile.value}</span>`;
-
-        if (isActive) {
-          cell.classList.add('game-tile--active');
-        } else if (_gs.phase === 'select') {
-          cell.classList.add('game-tile--selectable');
-          cell.addEventListener('click', () => _selectTile(r, c));
+      if (rowEven && colEven) {
+        // Tile cell
+        const r = row / 2, c = col / 2;
+        const tile = _gs.grid[r][c];
+        cell.className = 'game-tile';
+        if (tile) {
+          const { bg, fg } = _tileColor(tile.value);
+          cell.style.background = bg;
+          cell.style.color = fg;
+          const isActive = r === activeR && c === activeC;
+          cell.innerHTML = `<span class="tile-val">${_fmtVal(tile.value)}</span>`;
+          if (isActive) {
+            cell.classList.add('game-tile--active');
+          } else if (_gs.phase === 'select') {
+            cell.classList.add('game-tile--selectable');
+            cell.addEventListener('click', () => _selectTile(r, c));
+          }
         }
+      } else if (rowEven && !colEven) {
+        // Horizontal edge op cell between grid[r][hopC] and grid[r][hopC+1]
+        const r = row / 2;
+        const hopC = (col - 1) / 2;
+        const leftTile  = _gs.grid[r][hopC];
+        const rightTile = _gs.grid[r][hopC + 1];
+        const op = _gs.hops[r][hopC];
+        const bothExist = leftTile && rightTile;
+        const isActive  = bothExist && activeR === r && (activeC === hopC || activeC === hopC + 1);
+        cell.className = 'tile-edge-op' +
+          (!bothExist ? ' tile-edge-op--hidden' : '') +
+          (isActive   ? ' tile-edge-op--active' : '');
+        cell.textContent = op;
+      } else if (!rowEven && colEven) {
+        // Vertical edge op cell between grid[vopR][c] and grid[vopR+1][c]
+        const vopR = (row - 1) / 2;
+        const c    = col / 2;
+        const topTile = _gs.grid[vopR][c];
+        const botTile = _gs.grid[vopR + 1][c];
+        const op = _gs.vops[vopR][c];
+        const bothExist = topTile && botTile;
+        const isActive  = bothExist && activeC === c && (activeR === vopR || activeR === vopR + 1);
+        cell.className = 'tile-edge-op' +
+          (!bothExist ? ' tile-edge-op--hidden' : '') +
+          (isActive   ? ' tile-edge-op--active' : '');
+        cell.textContent = op;
+      } else {
+        // Spacer cell (odd row, odd col)
+        cell.className = 'tile-edge-spacer';
       }
 
       wrap.appendChild(cell);
@@ -222,7 +278,7 @@ function _renderBoard() {
 
   // Update score display
   const scoreEl = document.getElementById('game-score');
-  if (scoreEl) scoreEl.textContent = _gs.score;
+  if (scoreEl) scoreEl.textContent = _fmtVal(_gs.score);
   const movesEl = document.getElementById('game-moves');
   if (movesEl) movesEl.textContent = _gs.moves;
 
@@ -363,10 +419,12 @@ function renderGameTab() {
       <div style="margin-top:18px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;color:var(--muted2);line-height:1.8;">
         <strong style="color:var(--text);">How to play</strong><br>
         Tap a tile to select it, then slide it into a neighbor to merge.<br>
-        <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">3+</code> merges into
-        <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">5−</code>
-        → <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">8−</code>
-        · The operator on your tile applies; the neighbor's carries forward.<br>
+        The operator <strong style="color:var(--text);">between</strong> the two tiles is applied: e.g.
+        <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">3</code>
+        <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">+</code>
+        <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">5</code>
+        → <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">8</code>
+        · At most 2 ÷ ops per puzzle.<br>
         New puzzle every day at midnight.
       </div>
     </div>

@@ -921,8 +921,8 @@ input[type=range] {
 ══════════════════════════════════════════════ */
 .game-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: 1fr 22px 1fr 22px 1fr 22px 1fr;
+  gap: 3px;
   max-width: 380px;
   margin: 0 auto;
 }
@@ -948,14 +948,19 @@ input[type=range] {
   line-height: 1;
 }
 
-.tile-op {
+.tile-edge-op {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-num);
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: .03em;
-  opacity: 1;
-  margin-bottom: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted2);
+  transition: color .12s;
 }
+.tile-edge-op--active { color: var(--teal); }
+.tile-edge-op--hidden { visibility: hidden; }
+.tile-edge-spacer { }
 
 .game-stat-card {
   flex: 1;
