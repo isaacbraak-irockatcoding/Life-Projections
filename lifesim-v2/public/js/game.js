@@ -129,6 +129,12 @@ function _initState() {
   _writeSave(_gs);
 }
 
+function _resetGame() {
+  localStorage.removeItem(SAVE_KEY);
+  _gs = null;
+  renderGameTab();
+}
+
 // ── Select phase ──────────────────────────────────────────────────────────────
 function _selectTile(r, c) {
   if (!_gs || _gs.phase !== 'select') return;
@@ -346,6 +352,10 @@ function renderGameTab() {
         <button class="game-dir-btn" id="dir-btn-left"  onclick="_moveActive('left')" >◀</button>
         <button class="game-dir-btn" id="dir-btn-down"  onclick="_moveActive('down')" >▼</button>
         <button class="game-dir-btn" id="dir-btn-right" onclick="_moveActive('right')">▶</button>
+      </div>
+
+      <div style="margin-top:10px;display:flex;justify-content:center;">
+        <button class="game-reset-btn" onclick="_resetGame()">↻ Reset</button>
       </div>
 
       <div id="game-over-banner" class="game-over-banner" style="display:none;"></div>

@@ -996,6 +996,19 @@ input[type=range] {
 .game-dir-btn:active:not(:disabled) { background: rgba(0,212,170,.15); }
 .game-dir-btn:disabled { opacity: .2; cursor: default; pointer-events: none; }
 
+.game-reset-btn {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  color: var(--muted2);
+  border-radius: var(--r-sm);
+  padding: 6px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.game-reset-btn:hover { background: var(--card2); color: var(--text); }
+.game-reset-btn:active { background: rgba(0,212,170,.15); }
+
 .game-tile--selectable { cursor: pointer; }
 .game-tile--selectable:hover { border-color: var(--border2); filter: brightness(1.2); }
 
