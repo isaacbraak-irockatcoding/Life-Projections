@@ -33,24 +33,25 @@ function _applyOp(a, op, b) {
   return a + b;
 }
 
+function _lerp(a, b, t) { return Math.round(a + (b - a) * t); }
+
 function _tileColor(value) {
-  if (value >= 50)  return { bg: '#00d4aa', fg: '#07080f' };
-  if (value >= 15)  return { bg: '#00c49a', fg: '#07080f' };
-  if (value >= 8)   return { bg: '#0aaf91', fg: '#07080f' };
-  if (value >= 4)   return { bg: '#38bdf8', fg: '#07080f' };
-  if (value >= 1)   return { bg: '#a78bfa', fg: '#07080f' };
-  if (value === 0)  return { bg: '#1c2038', fg: '#7a83a8' };
-  if (value >= -3)  return { bg: '#f0a040', fg: '#07080f' };
-  if (value >= -9)  return { bg: '#ff6b72', fg: '#07080f' };
-  return { bg: '#c0392b', fg: '#fff' };
+  const RED  = [248, 113, 113]; // #f87171
+  const BLUE = [125, 211, 252]; // #7dd3fc
+  const GRN  = [ 74, 222, 128]; // #4ade80
+  const clamped = Math.max(-20, Math.min(20, value));
+  const t = (clamped + 20) / 40; // 0 → -20, 0.5 → 0, 1 → +20
+  const from = t <= 0.5 ? RED : BLUE;
+  const to   = t <= 0.5 ? BLUE : GRN;
+  const u    = t <= 0.5 ? t * 2 : (t - 0.5) * 2;
+  const rgb  = from.map((c, i) => _lerp(c, to[i], u));
+  return { bg: `rgb(${rgb.join(',')})`, fg: '#07080f' };
 }
 
 function _tileEmoji(value) {
-  if (value >= 15)  return '🟩';
-  if (value >= 4)   return '🟦';
-  if (value >= 1)   return '🟪';
+  if (value >= 10)  return '🟩';
+  if (value >= 1)   return '🟦';
   if (value === 0)  return '⬜';
-  if (value >= -3)  return '🟧';
   return '🟥';
 }
 
@@ -193,9 +194,14 @@ function _renderBoard() {
         const { bg, fg } = _tileColor(tile.value);
         cell.style.background = bg;
         cell.style.color = fg;
-        cell.innerHTML = `<span class="tile-op">${tile.op}</span><span class="tile-val">${tile.value}</span>`;
 
         const isActive = _gs.activePos && _gs.activePos.r === r && _gs.activePos.c === c;
+        const hideOp   = isActive && _gs.phase !== 'select';
+
+        cell.innerHTML = hideOp
+          ? `<span class="tile-val">${tile.value}</span>`
+          : `<span class="tile-op">${tile.op}</span><span class="tile-val">${tile.value}</span>`;
+
         if (isActive) {
           cell.classList.add('game-tile--active');
         } else if (_gs.phase === 'select') {
