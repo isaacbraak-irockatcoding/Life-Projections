@@ -950,9 +950,11 @@ input[type=range] {
 
 .tile-op {
   font-family: var(--font-num);
-  font-size: 11px;
-  opacity: .75;
-  margin-top: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .03em;
+  opacity: 1;
+  margin-bottom: 3px;
 }
 
 .game-stat-card {

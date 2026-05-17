@@ -23,12 +23,13 @@ function _dateSeed() {
 }
 
 // ── Tile helpers ──────────────────────────────────────────────────────────────
-const OPS = ['+', '-', '*'];
+const OPS = ['+', '-', '*', '÷'];
 
 function _applyOp(a, op, b) {
   if (op === '+') return a + b;
   if (op === '-') return a - b;
   if (op === '*') return a * b;
+  if (op === '÷') return b === 0 ? 0 : Math.trunc(a / b);
   return a + b;
 }
 
@@ -149,7 +150,7 @@ function _moveActive(dir) {
   const active = _gs.grid[r][c];
   const target = _gs.grid[nr][nc];
   const merged = {
-    value: _applyOp(active.value, active.op, target.value),
+    value: _applyOp(active.value, target.op, target.value),
     op: target.op,
   };
 
@@ -192,7 +193,7 @@ function _renderBoard() {
         const { bg, fg } = _tileColor(tile.value);
         cell.style.background = bg;
         cell.style.color = fg;
-        cell.innerHTML = `<span class="tile-val">${tile.value}</span><span class="tile-op">${tile.op}</span>`;
+        cell.innerHTML = `<span class="tile-op">${tile.op}</span><span class="tile-val">${tile.value}</span>`;
 
         const isActive = _gs.activePos && _gs.activePos.r === r && _gs.activePos.c === c;
         if (isActive) {
