@@ -15,6 +15,11 @@ const CALC_DEFAULTS = {
 };
 let _calcState = Object.assign({}, CALC_DEFAULTS);
 
+// ── Compound animation / view state ──────────
+let _calcAnimateMode  = false;
+let _calcAnimDuration = 9000; // ms
+let _calcViewRange    = null; // null = All, or integer years
+
 // ── Amortization state ────────────────────────
 const AMORT_DEFAULTS = { loan: 300000, rate: 6.5, years: 30, extra: 0 };
 let _amortState = Object.assign({}, AMORT_DEFAULTS);
@@ -27,6 +32,28 @@ function _fmt(n) {
 function _setCalcMode(mode) {
   _calcMode = mode;
   renderCalcTab();
+}
+
+function _setCalcRange(n) {
+  _calcViewRange = n;
+  _renderCalcResults();
+}
+
+function _toggleCalcAnimate() {
+  _calcAnimateMode = !_calcAnimateMode;
+  const btn = document.getElementById('calc-animate-btn');
+  if (btn) {
+    btn.classList.toggle('active', _calcAnimateMode);
+    btn.textContent = _calcAnimateMode ? '⏹ Stop' : '▶ Animate';
+  }
+  _renderCalcResults();
+}
+
+function _setCalcAnimDuration(s) {
+  _calcAnimDuration = s * 1000;
+  const label = document.getElementById('calc-anim-label');
+  if (label) label.textContent = `${s}s`;
+  if (_calcAnimateMode) _renderCalcResults();
 }
 
 // ══════════════════════════════════════════════
@@ -65,23 +92,45 @@ function _renderCalcChart(rows) {
   if (!canvas) return;
   if (_calcChart) { _calcChart.destroy(); _calcChart = null; }
 
-  const labels    = rows.map(r => 'Yr ' + r.year);
+  // Filter to view range
+  const vis = (_calcViewRange && _calcViewRange < rows.length) ? rows.slice(0, _calcViewRange) : rows;
+
+  // Sync range button active states
+  [5, 10, 20, null].forEach(r => {
+    const el = document.getElementById(r ? `calc-rb-${r}` : 'calc-rb-all');
+    if (el) el.classList.toggle('active', r === _calcViewRange);
+  });
+
+  const labels    = vis.map(r => 'Yr ' + r.year);
   const principal = _calcState.principal;
+
+  const delay      = _calcAnimDuration / Math.max(vis.length, 1);
+  const animOptions = _calcAnimateMode ? {
+    x: {
+      type: 'number', easing: 'linear', duration: delay, from: NaN,
+      delay(ctx) { return ctx.dataIndex * delay; },
+    },
+    y: {
+      type: 'number', easing: 'easeOutQuad', duration: delay,
+      from(ctx) { return ctx.chart.scales.y.getPixelForValue(0); },
+      delay(ctx) { return ctx.dataIndex * delay; },
+    },
+  } : { duration: 300 };
 
   _calcChart = new Chart(canvas.getContext('2d'), {
     type: 'bar',
     data: {
       labels,
       datasets: [
-        { label: 'Initial',       data: rows.map(() => principal),              backgroundColor: 'rgba(55,65,110,0.85)',   borderRadius: 2 },
-        { label: 'Contributions', data: rows.map(r => Math.max(0, r.contrib)),  backgroundColor: 'rgba(240,160,64,0.85)', borderRadius: 2 },
-        { label: 'Interest',      data: rows.map(r => Math.max(0, r.interest)), backgroundColor: 'rgba(0,212,170,0.85)', borderRadius: 2 },
+        { label: 'Initial',       data: vis.map(() => principal),              backgroundColor: 'rgba(55,65,110,0.85)',   borderRadius: 2 },
+        { label: 'Contributions', data: vis.map(r => Math.max(0, r.contrib)),  backgroundColor: 'rgba(240,160,64,0.85)', borderRadius: 2 },
+        { label: 'Interest',      data: vis.map(r => Math.max(0, r.interest)), backgroundColor: 'rgba(0,212,170,0.85)', borderRadius: 2 },
       ],
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      animation: { duration: 300 },
+      animation: animOptions,
       interaction: { mode: 'index' },
       plugins: {
         legend: { labels: { color: '#7a83a8', font: { size: 11 }, boxWidth: 12 } },
@@ -93,6 +142,22 @@ function _renderCalcChart(rows) {
       },
     },
   });
+
+  // Running tally: step through years as bars animate in
+  const tallyEl = document.getElementById('calc-tally');
+  if (tallyEl) {
+    if (_calcAnimateMode && vis.length) {
+      tallyEl.textContent = `Year 1: ${_fmt(vis[0].balance)}`;
+      let step = 0;
+      const tid = setInterval(() => {
+        step++;
+        if (step >= vis.length) { clearInterval(tid); return; }
+        tallyEl.textContent = `Year ${vis[step].year}: ${_fmt(vis[step].balance)}`;
+      }, delay);
+    } else {
+      tallyEl.textContent = vis.length ? `Total: ${_fmt(vis[vis.length - 1].balance)}` : '';
+    }
+  }
 }
 
 function _renderCalcResults() {
@@ -219,8 +284,28 @@ function _renderCompoundTab(el) {
     <div class="card" id="calc-summary" style="text-align:center;"></div>
 
     <div class="card" style="padding:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <div class="range-btns">
+          <button onclick="_setCalcRange(5)"    id="calc-rb-5"   class="range-btn">5y</button>
+          <button onclick="_setCalcRange(10)"   id="calc-rb-10"  class="range-btn">10y</button>
+          <button onclick="_setCalcRange(20)"   id="calc-rb-20"  class="range-btn">20y</button>
+          <button onclick="_setCalcRange(null)" id="calc-rb-all" class="range-btn ${_calcViewRange === null ? 'active' : ''}">All</button>
+        </div>
+      </div>
       <div class="calc-chart-wrap">
         <canvas id="calc-chart"></canvas>
+      </div>
+      <div id="calc-tally" style="text-align:center;min-height:20px;font-size:13px;color:var(--teal);margin-top:6px;font-family:var(--font-num);"></div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;flex-wrap:wrap;">
+        <button id="calc-animate-btn" onclick="_toggleCalcAnimate()" class="range-btn ${_calcAnimateMode ? 'active' : ''}">${_calcAnimateMode ? '⏹ Stop' : '▶ Animate'}</button>
+        <div style="display:flex;align-items:center;gap:7px;">
+          <span style="font-size:11px;color:var(--muted2);">5s</span>
+          <input type="range" id="calc-anim-slider" min="5" max="60" step="5" value="${Math.round(_calcAnimDuration / 1000)}"
+            style="width:90px;accent-color:var(--teal);cursor:pointer;"
+            oninput="_setCalcAnimDuration(+this.value)"/>
+          <span style="font-size:11px;color:var(--muted2);">60s</span>
+          <span id="calc-anim-label" style="font-size:11px;color:var(--teal);min-width:22px;">${Math.round(_calcAnimDuration / 1000)}s</span>
+        </div>
       </div>
     </div>
 

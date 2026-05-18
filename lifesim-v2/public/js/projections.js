@@ -226,19 +226,34 @@ const milestonePlugin = {
     const scenario = State.getScenario();
     if (!scenario || !scenario.events.length) return;
     const { ctx, chartArea, scales } = chart;
-    scenario.events.forEach(ev => {
-      const x = scales.x.getPixelForValue(+ev.at_age);
-      if (x == null || x < chartArea.left || x > chartArea.right) return;
+    ctx.font = '10px Outfit';
+    const items = scenario.events
+      .map(ev => {
+        const x = scales.x.getPixelForValue(+ev.at_age);
+        const lbl = `${ev.emoji} ${ev.name}`;
+        const tw = ctx.measureText(lbl).width;
+        return { ev, x, lbl, tw };
+      })
+      .filter(({ x }) => x != null && x >= chartArea.left && x <= chartArea.right)
+      .sort((a, b) => a.x - b.x);
+
+    const rowRight = [];
+    items.forEach(item => {
+      let row = rowRight.findIndex(r => item.x > r + 4);
+      if (row === -1) row = rowRight.length;
+      rowRight[row] = item.x + item.tw + 4;
+      item.row = row;
+    });
+
+    items.forEach(({ ev, x, lbl, tw, row }) => {
       ctx.save();
       ctx.strokeStyle = ev.color + 'bb';
       ctx.setLineDash([4, 5]); ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom);
       ctx.stroke(); ctx.setLineDash([]);
-      ctx.font = '10px Outfit'; ctx.fillStyle = ev.color;
-      const lbl = `${ev.emoji} ${ev.name}`;
-      const tw  = ctx.measureText(lbl).width;
-      ctx.fillText(lbl, Math.min(x + 4, chartArea.right - tw - 4), chartArea.top + 14);
+      ctx.fillStyle = ev.color;
+      ctx.fillText(lbl, Math.min(x + 4, chartArea.right - tw - 4), chartArea.top + 14 + row * 16);
       ctx.restore();
     });
   },

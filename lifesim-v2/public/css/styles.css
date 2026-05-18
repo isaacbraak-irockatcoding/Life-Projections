@@ -48,6 +48,7 @@ body {
    LAYOUT
 ══════════════════════════════════════ */
 .container { max-width: 540px; margin: 0 auto; padding: 20px 16px; }
+#screen-game { position: relative; z-index: 1; }
 
 /* ══════════════════════════════════════
    APP HEADER
@@ -915,3 +916,133 @@ input[type=range] {
 }
 .calc-table tr:last-child td { border-bottom: none; }
 .calc-table tr:hover td { background: rgba(255,255,255,.02); }
+
+/* ══════════════════════════════════════════════
+   GAME — NumSlide
+══════════════════════════════════════════════ */
+.game-grid {
+  display: grid;
+  grid-template-columns: 1fr 22px 1fr 22px 1fr 22px 1fr;
+  gap: 3px;
+  max-width: 380px;
+  margin: 0 auto;
+}
+
+.game-tile {
+  aspect-ratio: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: background .15s, color .15s;
+  user-select: none;
+}
+
+.tile-val {
+  font-family: var(--font-num);
+  font-size: clamp(16px, 4vw, 22px);
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tile-edge-op {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-num);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted2);
+  transition: color .12s;
+}
+.tile-edge-op--active { color: var(--teal); }
+.tile-edge-op--hidden { visibility: hidden; }
+.tile-edge-op--path   { color: #ffd700; font-size: 14px; }
+
+.tile-path-step {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(7,8,15,.6);
+}
+
+.game-hint-btn { color: #ffd700; border-color: rgba(245,158,11,.4); }
+.game-hint-btn:hover { color: #fbbf24; }
+.tile-edge-spacer { }
+
+.game-stat-card {
+  flex: 1;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+  text-align: center;
+}
+
+.game-stat-label {
+  font-size: 10px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--muted2);
+  margin-bottom: 2px;
+}
+
+.game-stat-val {
+  font-family: var(--font-num);
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--teal);
+}
+
+.game-dir-btn {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  border-radius: var(--r-sm);
+  width: 48px;
+  height: 40px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.game-dir-btn:hover:not(:disabled) { background: var(--card2); }
+.game-dir-btn:active:not(:disabled) { background: rgba(0,212,170,.15); }
+.game-dir-btn:disabled { opacity: .2; cursor: default; pointer-events: none; }
+
+.game-reset-btn {
+  background: var(--card);
+  border: 1px solid var(--border2);
+  color: var(--muted2);
+  border-radius: var(--r-sm);
+  padding: 6px 18px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .12s;
+}
+.game-reset-btn:hover { background: var(--card2); color: var(--text); }
+.game-reset-btn:active { background: rgba(0,212,170,.15); }
+
+.game-tile--selectable { cursor: pointer; }
+.game-tile--selectable:hover { border-color: var(--border2); filter: brightness(1.2); }
+
+.game-tile--active {
+  border: 2px solid var(--teal) !important;
+  box-shadow: 0 0 10px rgba(0,212,170,.45);
+}
+
+.game-over-banner {
+  margin-top: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: 2px solid var(--teal);
+  border-radius: var(--r);
+  padding: 22px 20px;
+  text-align: center;
+}

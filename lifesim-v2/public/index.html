@@ -130,6 +130,11 @@
   <div class="container" id="calc-content"></div>
 </div>
 
+<!-- ═══════════════ GAME SCREEN ═══════════════ -->
+<div id="screen-game" style="display:none;">
+  <div class="container" id="game-content"></div>
+</div>
+
 <!-- ═══════════════ CONTACT FOOTER ═══════════════ -->
 <footer class="app-footer" id="app-footer" style="display:none;">
   <a href="mailto:Lifesimfinance@gmail.com">Lifesimfinance@gmail.com</a>
@@ -140,8 +145,8 @@
   <div class="nav-item" id="nav-proj"    onclick="switchTab('proj')">
     <span class="nav-icon">📈</span>Projections
   </div>
-  <div class="nav-item" id="nav-share"   onclick="switchTab('share')">
-    <span class="nav-icon">🔗</span>Share
+  <div class="nav-item" id="nav-calc" onclick="switchTab('calc')">
+    <span class="nav-icon">🧮</span>Calculator
   </div>
   <div class="nav-item" id="nav-friends" onclick="switchTab('friends')">
     <span class="nav-icon">👥</span>Friends
@@ -149,8 +154,11 @@
   <div class="nav-item" id="nav-explore" onclick="switchTab('explore')">
     <span class="nav-icon">🧭</span>Explore
   </div>
-  <div class="nav-item" id="nav-calc" onclick="switchTab('calc')">
-    <span class="nav-icon">🧮</span>Calculator
+  <div class="nav-item" id="nav-share"   onclick="switchTab('share')">
+    <span class="nav-icon">🔗</span>Share
+  </div>
+  <div class="nav-item" id="nav-game" onclick="switchTab('game')">
+    <span class="nav-icon">🎲</span>Game
   </div>
 </nav>
 
@@ -170,6 +178,7 @@
 <script src="/js/explore.js"></script>
 <script src="/js/calc.js"></script>
 <script src="/js/auth.js"></script>
+<script src="/js/game.js"></script>
 <script>
   // Toast utility
   function showToast(msg, isError = false) {

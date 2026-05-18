@@ -48,43 +48,35 @@ function renderFriendsList(friends, pending, el) {
 
   // Friends list
   html += `<div class="card fade-up">
-    <h3>Friends${friends.length ? ` (${friends.length})` : ''}</h3>`;
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:${friends.length ? '10px' : '0'};">
+      <h3 style="margin:0;flex:1;">Friends${friends.length ? ` (${friends.length})` : ''}</h3>
+      ${friends.length ? `<input type="text" id="friend-search" placeholder="Search…"
+        oninput="filterFriendsList(this.value)"
+        style="background:var(--input,#1a1e32);border:1px solid var(--border,#2a2e42);border-radius:6px;padding:5px 10px;font-size:12px;color:var(--text);width:130px;outline:none;"/>` : ''}
+    </div>
+    <div id="friends-items-list">`;
 
   if (friends.length) {
     html += friends.map(f => `
-      <div class="friend-item">
+      <div class="friend-item" data-username="${escapeHtml(f.username.toLowerCase())}" data-id="${f.id}">
         <span style="font-size:22px;">${f.avatar}</span>
         <div class="friend-info">
-          <div class="friend-name">${f.username}</div>
+          <div class="friend-name">${escapeHtml(f.username)}</div>
           <div class="micro">Friend</div>
         </div>
-        <button class="event-del" onclick="removeFriend(${f.id})" title="Remove">✕</button>
+        <div style="display:flex;gap:6px;align-items:center;">
+          ${f.share_token
+            ? `<button class="btn btn-ghost btn-sm btn-icon" title="View scenario"
+                 onclick="toggleFriendScenario(${f.id},'${f.share_token}')">📈</button>`
+            : ''}
+          <button class="event-del" onclick="removeFriend(${f.id})" title="Remove">✕</button>
+        </div>
       </div>`).join('');
   } else {
     html += `<p style="color:var(--muted2);font-size:12px;">No friends yet.</p>`;
   }
-  html += `</div>`;
-
-  // Friends' Scenarios feed
-  if (withScenarios.length) {
-    html += `<div class="card fade-up">
-      <h3>Friends' Scenarios</h3>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:10px;">`;
-    html += withScenarios.map(f => `
-      <div style="background:var(--input,#1a1e32);border-radius:10px;padding:12px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="font-size:18px;">${f.avatar}</span>
-          <div>
-            <div style="font-size:13px;font-weight:600;">${escapeHtml(f.username)}</div>
-            <div style="font-size:11px;color:var(--muted2);min-height:14px;">
-              <span id="ff-occ-${f.id}"></span>
-            </div>
-          </div>
-        </div>
-        <canvas id="ff-chart-${f.id}" height="120" style="width:100%;"></canvas>
-      </div>`).join('');
-    html += `</div></div>`;
-  }
+  html += `<p id="friend-no-match" style="display:none;color:var(--muted2);font-size:12px;">No matches.</p>
+    </div></div>`;
 
   // Add friend form
   html += `<div class="card fade-up">
@@ -99,7 +91,6 @@ function renderFriendsList(friends, pending, el) {
   html += `<div id="groups-section"></div>`;
   document.getElementById('friends-content').innerHTML = html;
   renderGroupsSection(document.getElementById('groups-section'));
-  withScenarios.forEach(f => _renderFriendChart(f.id, f.share_token));
 }
 
 async function _renderFriendChart(friendId, shareToken) {
@@ -114,16 +105,33 @@ async function _renderFriendChart(friendId, shareToken) {
 
     _friendCharts[`ff-chart-${friendId}`] = new Chart(canvas.getContext('2d'), {
       type: 'line',
-      data: { labels: ages, datasets: [{ data: result.path, borderColor: color,
-        backgroundColor: color + '15', fill: true, tension: 0.35, pointRadius: 0, borderWidth: 2 }] },
+      data: { labels: ages, datasets: [{
+        data: result.path, borderColor: color, backgroundColor: color + '10',
+        fill: false, tension: 0.35, pointRadius: 0, borderWidth: 2.5, spanGaps: false,
+      }]},
       options: {
         responsive: true,
+        interaction: { mode: 'index', intersect: false },
         scales: {
-          y: { grid: { color: '#1a1e32' }, ticks: { color: '#4a5370',
-            callback: v => v >= 1e6 ? '$' + (v/1e6).toFixed(1) + 'M' : v >= 1000 ? '$' + (v/1000).toFixed(0) + 'K' : '$' + v } },
-          x: { grid: { display: false }, ticks: { color: '#4a5370', maxTicksLimit: 5 } },
+          y: {
+            grid: { color: '#1a1e32' },
+            ticks: { color: '#4a5370', callback: v =>
+              v >= 1e6 ? '$'+(v/1e6).toFixed(1)+'M' : v >= 1000 ? '$'+(v/1000).toFixed(0)+'K' : '$'+v },
+          },
+          x: {
+            min: scenario.start_age || 25,
+            grid: { display: false },
+            ticks: { color: '#4a5370', maxTicksLimit: 6 },
+          },
         },
-        plugins: { legend: { display: false } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#141720', borderColor: '#1c2038', borderWidth: 1,
+            titleColor: '#7a83a8', bodyColor: '#dde3f5',
+            callbacks: { label: ctx => ` ${fmtM(ctx.parsed.y)}` },
+          },
+        },
       },
     });
 
@@ -173,6 +181,40 @@ async function removeFriend(userId) {
     showToast('Friend removed');
     renderFriendsTab();
   } catch (err) { showToast(err.message, true); }
+}
+
+function toggleFriendScenario(friendId, shareToken) {
+  const panelId = `ff-panel-${friendId}`;
+  const existing = document.getElementById(panelId);
+  if (existing) {
+    const key = `ff-chart-${friendId}`;
+    if (_friendCharts[key]) { _friendCharts[key].destroy(); delete _friendCharts[key]; }
+    existing.remove();
+    return;
+  }
+  const item = document.querySelector(`.friend-item[data-id="${friendId}"]`);
+  if (!item) return;
+  const panel = document.createElement('div');
+  panel.id = panelId;
+  panel.style.cssText = 'padding:10px 0 4px;border-top:1px solid var(--border,#2a2e42);margin-top:6px;';
+  panel.innerHTML = `
+    <div style="font-size:11px;color:var(--muted2);margin-bottom:6px;" id="ff-occ-${friendId}"></div>
+    <canvas id="ff-chart-${friendId}" height="130" style="width:100%;"></canvas>`;
+  item.insertAdjacentElement('afterend', panel);
+  _renderFriendChart(friendId, shareToken);
+}
+
+function filterFriendsList(query) {
+  const q = query.trim().toLowerCase();
+  const items = document.querySelectorAll('#friends-items-list .friend-item');
+  let visible = 0;
+  items.forEach(item => {
+    const match = !q || item.dataset.username.includes(q);
+    item.style.display = match ? '' : 'none';
+    if (match) visible++;
+  });
+  const noMatch = document.getElementById('friend-no-match');
+  if (noMatch) noMatch.style.display = (items.length && visible === 0) ? '' : 'none';
 }
 
 async function sendFriendRequest() {
