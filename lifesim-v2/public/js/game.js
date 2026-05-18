@@ -35,8 +35,8 @@ function _applyOp(a, op, b) {
 
 function _fmtVal(v) {
   if (!Number.isFinite(v)) return '0';
-  if (Number.isInteger(v)) return String(v);
-  return v.toFixed(1);
+  if (Number.isInteger(v)) return v.toLocaleString('en-US');
+  return parseFloat(v.toFixed(1)).toLocaleString('en-US');
 }
 
 function _lerp(a, b, t) { return Math.round(a + (b - a) * t); }
@@ -139,6 +139,7 @@ function _writeSave(state) {
 // ── Game state ────────────────────────────────────────────────────────────────
 let _gs = null;
 // { grid, hops, vops, activePos: {r,c}|null, phase: 'select'|'play'|'over', moves, score }
+let _bestPath = null; // [{r,c}] gold path overlay, or null
 
 function _initState() {
   const saved = _loadSave();
@@ -155,7 +156,58 @@ function _initState() {
 function _resetGame() {
   localStorage.removeItem(SAVE_KEY);
   _gs = null;
+  _bestPath = null;
   renderGameTab();
+}
+
+// ── Best-path finder (DFS with backtracking) ──────────────────────────────────
+function _findBestPath() {
+  if (!_gs) return null;
+  const { hops, vops } = _gs;
+  let bestScore = -Infinity;
+  let bestFound = null;
+
+  function edgeOp(r, c, dir) {
+    if (dir === 'right') return hops[r][c];
+    if (dir === 'left')  return hops[r][c - 1];
+    if (dir === 'down')  return vops[r][c];
+    return vops[r - 1][c];
+  }
+
+  function dfs(grid, r, c, value, path) {
+    let moved = false;
+    for (const dir of ['up', 'down', 'left', 'right']) {
+      const [dr, dc] = _DELTAS[dir];
+      const nr = r + dr, nc = c + dc;
+      if (nr < 0 || nr >= 4 || nc < 0 || nc >= 4 || !grid[nr][nc]) continue;
+      moved = true;
+      const newVal = _applyOp(value, edgeOp(r, c, dir), grid[nr][nc].value);
+      const savedA = grid[r][c], savedT = grid[nr][nc];
+      grid[r][c] = null;
+      grid[nr][nc] = { value: newVal };
+      path.push({ r: nr, c: nc });
+      dfs(grid, nr, nc, newVal, path);
+      path.pop();
+      grid[r][c] = savedA;
+      grid[nr][nc] = savedT;
+    }
+    if (!moved && value > bestScore) {
+      bestScore = value;
+      bestFound = path.slice();
+    }
+  }
+
+  const grid = _gs.grid.map(row => row.map(t => t ? { ...t } : null));
+  for (let r = 0; r < 4; r++)
+    for (let c = 0; c < 4; c++)
+      if (grid[r][c]) dfs(grid, r, c, grid[r][c].value, [{ r, c }]);
+
+  return bestFound;
+}
+
+function _toggleHint() {
+  _bestPath = _bestPath ? null : _findBestPath();
+  _renderBoard();
 }
 
 // ── Select phase ──────────────────────────────────────────────────────────────
@@ -185,6 +237,7 @@ function _moveActive(dir) {
                :                   _gs.vops[r - 1][c];
   const merged = { value: _applyOp(active.value, edgeOp, target.value) };
 
+  _bestPath = null;
   _gs.grid[r][c] = null;
   _gs.grid[nr][nc] = merged;
   _gs.activePos = { r: nr, c: nc };
@@ -229,11 +282,13 @@ function _renderBoard() {
         const tile = _gs.grid[r][c];
         cell.className = 'game-tile';
         if (tile) {
-          const { bg, fg } = _tileColor(tile.value);
-          cell.style.background = bg;
-          cell.style.color = fg;
+          const pathStep = _bestPath ? _bestPath.findIndex(p => p.r === r && p.c === c) : -1;
+          const onPath   = pathStep >= 0;
+          cell.style.background = onPath ? '#ffd700' : '#7dd3fc';
+          cell.style.color = '#07080f';
           const isActive = r === activeR && c === activeC;
-          cell.innerHTML = `<span class="tile-val">${_fmtVal(tile.value)}</span>`;
+          cell.innerHTML = `<span class="tile-val">${_fmtVal(tile.value)}</span>` +
+            (pathStep === 0 ? `<span class="tile-path-step">★</span>` : '');
           if (isActive) {
             cell.classList.add('game-tile--active');
           } else if (_gs.phase === 'select') {
@@ -250,10 +305,19 @@ function _renderBoard() {
         const op = _gs.hops[r][hopC];
         const bothExist = leftTile && rightTile;
         const isActive  = bothExist && activeR === r && (activeC === hopC || activeC === hopC + 1);
+        let pathArrow = null;
+        if (_bestPath) {
+          for (let i = 1; i < _bestPath.length; i++) {
+            const a = _bestPath[i-1], b = _bestPath[i];
+            if (a.r === r && a.c === hopC   && b.r === r && b.c === hopC+1) { pathArrow = '→'; break; }
+            if (a.r === r && a.c === hopC+1 && b.r === r && b.c === hopC)   { pathArrow = '←'; break; }
+          }
+        }
         cell.className = 'tile-edge-op' +
-          (!bothExist ? ' tile-edge-op--hidden' : '') +
-          (isActive   ? ' tile-edge-op--active' : '');
-        cell.textContent = op;
+          (!bothExist  ? ' tile-edge-op--hidden' : '') +
+          (isActive    ? ' tile-edge-op--active' : '') +
+          (pathArrow   ? ' tile-edge-op--path'   : '');
+        cell.textContent = pathArrow || op;
       } else if (!rowEven && colEven) {
         // Vertical edge op cell between grid[vopR][c] and grid[vopR+1][c]
         const vopR = (row - 1) / 2;
@@ -263,10 +327,19 @@ function _renderBoard() {
         const op = _gs.vops[vopR][c];
         const bothExist = topTile && botTile;
         const isActive  = bothExist && activeC === c && (activeR === vopR || activeR === vopR + 1);
+        let pathArrow = null;
+        if (_bestPath) {
+          for (let i = 1; i < _bestPath.length; i++) {
+            const a = _bestPath[i-1], b = _bestPath[i];
+            if (a.r === vopR && a.c === c && b.r === vopR+1 && b.c === c) { pathArrow = '↓'; break; }
+            if (a.r === vopR+1 && a.c === c && b.r === vopR && b.c === c) { pathArrow = '↑'; break; }
+          }
+        }
         cell.className = 'tile-edge-op' +
-          (!bothExist ? ' tile-edge-op--hidden' : '') +
-          (isActive   ? ' tile-edge-op--active' : '');
-        cell.textContent = op;
+          (!bothExist  ? ' tile-edge-op--hidden' : '') +
+          (isActive    ? ' tile-edge-op--active' : '') +
+          (pathArrow   ? ' tile-edge-op--path'   : '');
+        cell.textContent = pathArrow || op;
       } else {
         // Spacer cell (odd row, odd col)
         cell.className = 'tile-edge-spacer';
@@ -295,6 +368,8 @@ function _renderBoard() {
   }
 
   _updateDirButtons();
+  const hintBtn = document.getElementById('hint-btn');
+  if (hintBtn) hintBtn.textContent = _bestPath ? '✕ Hide Path' : '★ Best Path';
 }
 
 function _showGameOver() {
@@ -410,14 +485,16 @@ function renderGameTab() {
         <button class="game-dir-btn" id="dir-btn-right" onclick="_moveActive('right')">▶</button>
       </div>
 
-      <div style="margin-top:10px;display:flex;justify-content:center;">
+      <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;">
         <button class="game-reset-btn" onclick="_resetGame()">↻ Reset</button>
+        <button class="game-reset-btn game-hint-btn" id="hint-btn" onclick="_toggleHint()">★ Best Path</button>
       </div>
 
       <div id="game-over-banner" class="game-over-banner" style="display:none;"></div>
 
       <div style="margin-top:18px;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12px;color:var(--muted2);line-height:1.8;">
         <strong style="color:var(--text);">How to play</strong><br>
+        <strong style="color:var(--teal);">Objective:</strong> reach the highest number possible.<br>
         Tap a tile to select it, then slide it into a neighbor to merge.<br>
         The operator <strong style="color:var(--text);">between</strong> the two tiles is applied: e.g.
         <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">3</code>
@@ -425,6 +502,7 @@ function renderGameTab() {
         <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">5</code>
         → <code style="background:var(--surf);padding:1px 5px;border-radius:4px;">8</code>
         · At most 2 ÷ ops per puzzle.<br>
+        Use <strong style="color:var(--text);">★ Best Path</strong> to highlight the optimal route in gold.<br>
         New puzzle every day at midnight.
       </div>
     </div>

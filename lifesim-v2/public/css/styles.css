@@ -48,6 +48,7 @@ body {
    LAYOUT
 ══════════════════════════════════════ */
 .container { max-width: 540px; margin: 0 auto; padding: 20px 16px; }
+#screen-game { position: relative; z-index: 1; }
 
 /* ══════════════════════════════════════
    APP HEADER
@@ -960,6 +961,20 @@ input[type=range] {
 }
 .tile-edge-op--active { color: var(--teal); }
 .tile-edge-op--hidden { visibility: hidden; }
+.tile-edge-op--path   { color: #ffd700; font-size: 14px; }
+
+.tile-path-step {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(7,8,15,.6);
+}
+
+.game-hint-btn { color: #ffd700; border-color: rgba(245,158,11,.4); }
+.game-hint-btn:hover { color: #fbbf24; }
 .tile-edge-spacer { }
 
 .game-stat-card {
