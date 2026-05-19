@@ -128,6 +128,7 @@ function _writeSave(state) {
       grid: state.grid,
       hops: state.hops,
       vops: state.vops,
+      origGrid: state.origGrid,
       activePos: state.activePos,
       phase: state.phase,
       moves: state.moves,
@@ -149,7 +150,9 @@ function _initState() {
   }
   const rng = _mulberry32(_dateSeed());
   const { grid, hops, vops } = _generateBoard(rng);
-  _gs = { grid, hops, vops, activePos: null, phase: 'select', moves: 0, score: 0 };
+  _gs = { grid, hops, vops,
+          origGrid: grid.map(row => row.map(t => t ? { ...t } : null)),
+          activePos: null, phase: 'select', moves: 0, score: 0 };
   _writeSave(_gs);
 }
 
@@ -197,16 +200,22 @@ function _findBestPath() {
     }
   }
 
-  const grid = _gs.grid.map(row => row.map(t => t ? { ...t } : null));
+  const baseGrid = _gs.origGrid || _gs.grid;
+  const grid = baseGrid.map(row => row.map(t => t ? { ...t } : null));
   for (let r = 0; r < 4; r++)
     for (let c = 0; c < 4; c++)
       if (grid[r][c]) dfs(grid, r, c, grid[r][c].value, [{ r, c }]);
 
-  return bestFound;
+  return bestFound ? { path: bestFound, score: bestScore } : null;
 }
 
 function _toggleHint() {
-  _bestPath = _bestPath ? null : _findBestPath();
+  if (_bestPath) {
+    _bestPath = null;
+  } else {
+    const result = _findBestPath();
+    _bestPath = result ? result.path : null;
+  }
   _renderBoard();
 }
 
@@ -267,8 +276,10 @@ function _renderBoard() {
   if (!wrap || !_gs) return;
   wrap.innerHTML = '';
 
-  const activeR = _gs.activePos?.r;
-  const activeC = _gs.activePos?.c;
+  const showOrig = _bestPath && _gs.phase === 'over' && _gs.origGrid;
+  const displayGrid = showOrig ? _gs.origGrid : _gs.grid;
+  const activeR = showOrig ? undefined : _gs.activePos?.r;
+  const activeC = showOrig ? undefined : _gs.activePos?.c;
 
   for (let row = 0; row < 7; row++) {
     for (let col = 0; col < 7; col++) {
@@ -279,16 +290,20 @@ function _renderBoard() {
       if (rowEven && colEven) {
         // Tile cell
         const r = row / 2, c = col / 2;
-        const tile = _gs.grid[r][c];
+        const tile = displayGrid[r][c];
         cell.className = 'game-tile';
         if (tile) {
           const pathStep = _bestPath ? _bestPath.findIndex(p => p.r === r && p.c === c) : -1;
           const onPath   = pathStep >= 0;
-          cell.style.background = onPath ? '#ffd700' : '#7dd3fc';
+          const isStart  = pathStep === 0;
+          const isEnd    = onPath && pathStep === _bestPath.length - 1;
+          cell.style.background = onPath
+            ? (isStart ? '#22c55e' : isEnd ? '#f97316' : '#ffd700')
+            : '#7dd3fc';
           cell.style.color = '#07080f';
           const isActive = r === activeR && c === activeC;
           cell.innerHTML = `<span class="tile-val">${_fmtVal(tile.value)}</span>` +
-            (pathStep === 0 ? `<span class="tile-path-step">★</span>` : '');
+            (onPath ? `<span class="tile-path-step">${isStart ? '▶' : isEnd ? '■' : pathStep}</span>` : '');
           if (isActive) {
             cell.classList.add('game-tile--active');
           } else if (_gs.phase === 'select') {
@@ -300,8 +315,8 @@ function _renderBoard() {
         // Horizontal edge op cell between grid[r][hopC] and grid[r][hopC+1]
         const r = row / 2;
         const hopC = (col - 1) / 2;
-        const leftTile  = _gs.grid[r][hopC];
-        const rightTile = _gs.grid[r][hopC + 1];
+        const leftTile  = displayGrid[r][hopC];
+        const rightTile = displayGrid[r][hopC + 1];
         const op = _gs.hops[r][hopC];
         const bothExist = leftTile && rightTile;
         const isActive  = bothExist && activeR === r && (activeC === hopC || activeC === hopC + 1);
@@ -322,8 +337,8 @@ function _renderBoard() {
         // Vertical edge op cell between grid[vopR][c] and grid[vopR+1][c]
         const vopR = (row - 1) / 2;
         const c    = col / 2;
-        const topTile = _gs.grid[vopR][c];
-        const botTile = _gs.grid[vopR + 1][c];
+        const topTile = displayGrid[vopR][c];
+        const botTile = displayGrid[vopR + 1][c];
         const op = _gs.vops[vopR][c];
         const bothExist = topTile && botTile;
         const isActive  = bothExist && activeC === c && (activeR === vopR || activeR === vopR + 1);
@@ -372,6 +387,16 @@ function _renderBoard() {
   if (hintBtn) hintBtn.textContent = _bestPath ? '✕ Hide Path' : '★ Best Path';
 }
 
+function _scoreRank(score, best) {
+  if (best == null || score >= best) return { label: 'Galaxy Brain',    emoji: '🌌', color: '#a78bfa' };
+  const ratio = best > 0 ? score / best : 0;
+  if (ratio >= 0.75) return { label: 'Big Brain',       emoji: '🧠', color: '#60a5fa' };
+  if (ratio >= 0.50) return { label: 'Math Wizard',     emoji: '🧙', color: '#34d399' };
+  if (ratio >= 0.25) return { label: 'Number Cruncher', emoji: '⚙️',  color: '#fbbf24' };
+  if (ratio >  0)    return { label: 'Rookie',          emoji: '🌱', color: '#94a3b8' };
+  return               { label: 'Scrambled',            emoji: '🥚', color: '#f87171' };
+}
+
 function _showGameOver() {
   const banner = document.getElementById('game-over-banner');
   if (!banner) return;
@@ -379,10 +404,13 @@ function _showGameOver() {
   const instrEl = document.getElementById('game-instr');
   if (instrEl) instrEl.style.display = 'none';
 
+  const pathResult = _findBestPath();
+  const rank = _scoreRank(_gs.score, pathResult?.score ?? null);
   const shareText = _buildShareText();
   banner.innerHTML = `
     <div style="font-size:32px;margin-bottom:8px;">🏁</div>
     <div style="font-size:20px;font-weight:700;margin-bottom:4px;">Dead End!</div>
+    <div style="display:inline-block;padding:4px 16px;border-radius:20px;background:${rank.color}22;border:1px solid ${rank.color};color:${rank.color};font-size:15px;font-weight:700;margin-bottom:12px;">${rank.emoji} ${rank.label}</div>
     <div style="font-size:14px;color:var(--muted2);margin-bottom:16px;">
       Final score: <strong style="color:var(--teal);">${_gs.score}</strong> · ${_gs.moves} merge${_gs.moves === 1 ? '' : 's'}
     </div>
@@ -400,7 +428,9 @@ function _buildShareText() {
   const rows = _gs.grid.map(row =>
     row.map(t => t ? _tileEmoji(t.value) : '⬛').join('')
   ).join('\n');
-  return `NumSlide ${_todayStr()}\nScore: ${_gs.score} in ${_gs.moves} moves\n${rows}`;
+  const pathResult = _findBestPath();
+  const rankLabel  = _scoreRank(_gs.score, pathResult?.score ?? null).label;
+  return `NumSlide ${_todayStr()}\nScore: ${_gs.score} in ${_gs.moves} moves · ${rankLabel}\n${rows}`;
 }
 
 // ── Input handling ────────────────────────────────────────────────────────────
