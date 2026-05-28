@@ -203,6 +203,10 @@ CREATE INDEX IF NOT EXISTS idx_group_members_g   ON group_members(group_id);
 CREATE INDEX IF NOT EXISTS idx_group_members_u   ON group_members(user_id);
 CREATE INDEX IF NOT EXISTS idx_group_join_code   ON groups(join_code);
 
+-- Backfill columns that may be missing from older schema versions
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar             TEXT NOT NULL DEFAULT '🦊';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS recovery_code_hash TEXT DEFAULT NULL;
+
 -- Auto-invest pool: % of remaining free cash invested each year at a configurable return rate
 ALTER TABLE scenarios  ADD COLUMN IF NOT EXISTS invest_pct         DOUBLE PRECISION NOT NULL DEFAULT 0;
 ALTER TABLE scenarios  ADD COLUMN IF NOT EXISTS invest_return_rate DOUBLE PRECISION NOT NULL DEFAULT 7;
